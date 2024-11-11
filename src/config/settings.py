@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # Environment Configuration
     environment: str = "development"
     debug: bool = False
-    app_version: str = "2.1.0"
+    app_version: str = "2.1.1"
     
     # Discord Configuration
     discord_token: str

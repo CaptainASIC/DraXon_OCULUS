@@ -15,7 +15,7 @@ import json
 import aiohttp
 
 from src.utils.constants import (
-    RSI_API,
+    RSI_CONFIG,
     STATUS_EMOJIS,
     CACHE_SETTINGS
 )
@@ -64,13 +64,13 @@ class RSIIncidentMonitorCog(commands.Cog):
         try:
             now = datetime.utcnow().time()
             maintenance_start = datetime.strptime(
-                RSI_API['MAINTENANCE_START'], 
+                RSI_CONFIG['MAINTENANCE_START'], 
                 "%H:%M"
             ).time()
             
             maintenance_end = (
                 datetime.combine(datetime.utcnow().date(), maintenance_start) +
-                timedelta(hours=RSI_API['MAINTENANCE_DURATION'])
+                timedelta(hours=RSI_CONFIG['MAINTENANCE_DURATION'])
             ).time()
             
             if maintenance_end < maintenance_start:
@@ -91,7 +91,7 @@ class RSIIncidentMonitorCog(commands.Cog):
         for attempt in range(3):  # 3 retries
             try:
                 async with self.bot.session.get(
-                    RSI_API['FEED_URL'],
+                    RSI_CONFIG['FEED_URL'],
                     timeout=30
                 ) as response:
                     if response.status == 200:

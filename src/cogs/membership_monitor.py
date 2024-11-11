@@ -10,7 +10,7 @@ from src.utils.constants import (
     ROLE_SETTINGS,
     SYSTEM_MESSAGES,
     CACHE_SETTINGS,
-    RSI_API
+    RSI_CONFIG
 )
 
 logger = logging.getLogger('DraXon_AI')
@@ -328,7 +328,7 @@ class MembershipMonitorCog(commands.Cog):
         
         # Wait until configured time
         now = datetime.utcnow()
-        target_hour = int(RSI_API['MAINTENANCE_START'].split(':')[0])
+        target_hour = int(RSI_CONFIG['MAINTENANCE_START'].split(':')[0])
         
         if now.hour >= target_hour:
             tomorrow = now + timedelta(days=1)
