@@ -1,5 +1,5 @@
 # Version info
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.1.2"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
