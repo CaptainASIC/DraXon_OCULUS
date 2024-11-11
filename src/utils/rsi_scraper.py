@@ -25,7 +25,7 @@ class RSIScraper:
         """Initialize the scraper
         
         Args:
-            session: aiohttp session (not used, kept for compatibility)
+            session: Discord bot's aiohttp session (not used for RSI requests)
             redis: Redis connection for caching
         """
         self.redis = redis
@@ -36,9 +36,13 @@ class RSIScraper:
             'Cache-Control': 'no-cache',
             'Cookie': 'Rsi-Token='
         }
+        # Get proxy settings from environment
+        self.proxies = {}
+        if os.getenv('HTTP_PROXY'):
+            self.proxies = {'http': os.environ['HTTP_PROXY']}
 
     def _make_request(self, url: str, method: str = "get", json_data: Dict = None) -> Optional[requests.Response]:
-        """Make a request to RSI website
+        """Make a request to RSI website using requests library
         
         Args:
             url (str): URL to request
@@ -53,27 +57,24 @@ class RSIScraper:
                 "url": url,
                 "headers": self.headers,
                 "stream": False,
-                "timeout": 5  # Match the working API's timeout
+                "timeout": 5,  # Match the working API's timeout
+                "proxies": self.proxies,
+                "verify": True  # Enable SSL verification
             }
 
             if json_data is not None:
                 args["json"] = json_data
 
-            # Handle proxy settings like the working API
-            proxies = {}
-            if os.getenv('HTTP_PROXY'):
-                proxies = {'http': os.environ['HTTP_PROXY']}
-
-            req = None
             if method.lower() == "post":
-                req = requests.post(proxies=proxies, **args)
+                return requests.post(**args)
             elif method.lower() == "get":
-                req = requests.get(proxies=proxies, **args)
+                return requests.get(**args)
             else:
                 return None
 
-            return req
-
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error making request: {e}")
             return None

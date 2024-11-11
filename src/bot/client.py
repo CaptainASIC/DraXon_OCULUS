@@ -77,26 +77,23 @@ class DraXonOCULUSBot(commands.Bot):
         try:
             # Initialize aiohttp session with basic settings
             connector = aiohttp.TCPConnector(
-                ssl=False,  # Disable SSL verification like requests library
                 force_close=False,
                 enable_cleanup_closed=True,
                 limit=100,  # Maximum number of connections
-                ttl_dns_cache=300,  # Cache DNS results for 5 minutes
-                verify_ssl=False  # Also disable SSL verification here
+                ttl_dns_cache=300  # Cache DNS results for 5 minutes
             )
             
             # Create session with default timeout
             timeout = aiohttp.ClientTimeout(
-                total=5,  # Match the working API's timeout
-                connect=5,
-                sock_connect=5,
-                sock_read=5
+                total=30,
+                connect=10,
+                sock_connect=10,
+                sock_read=10
             )
             
             self.session = aiohttp.ClientSession(
                 connector=connector,
-                timeout=timeout,
-                trust_env=True  # Trust environment variables for proxy settings
+                timeout=timeout
             )
             logger.info("HTTP session initialized")
             
