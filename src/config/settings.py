@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # Environment Configuration
     environment: str = "development"
     debug: bool = False
-    app_version: str = "2.0.0"
+    app_version: str = "2.1.0"
     
     # Discord Configuration
     discord_token: str
@@ -31,16 +31,12 @@ class Settings(BaseSettings):
     redis_password: Optional[str] = None
     redis_db: int = 0
     
-    # RSI API Configuration
-    rsi_api_key: str
+    # RSI Configuration
     rsi_organization_sid: str = "DRAXON"
-    rsi_api_base_url: str = "https://api.starcitizen-api.com"
-    api_version: str = "v1"
-    api_mode: str = "live"
     
     # Rate Limiting
     rate_limit_commands: int = 5  # commands per minute
-    rate_limit_api: int = 60      # API calls per minute
+    rate_limit_scrape: int = 30   # scrape requests per minute
     
     # Cache Settings
     cache_ttl: int = 300          # 5 minutes
@@ -64,7 +60,7 @@ class Settings(BaseSettings):
     
     # Security Settings
     ssl_verify: bool = True
-    api_timeout: int = 30
+    request_timeout: int = 30
     
     # Docker Settings
     docker_restart_policy: str = "unless-stopped"
@@ -112,11 +108,6 @@ class Settings(BaseSettings):
         except Exception as e:
             logger.error(f"Error creating Redis URL: {e}")
             raise
-
-    @property
-    def rsi_api_url(self) -> str:
-        """Get RSI API URL"""
-        return f"{self.rsi_api_base_url}/{self.api_version}/{self.api_mode}"
     
     @property
     def is_production(self) -> bool:

@@ -1,5 +1,5 @@
 # Version info
-APP_VERSION = "2.0.5"
+APP_VERSION = "2.1.0"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
@@ -42,12 +42,12 @@ PROMOTION_TIMEOUT = ROLE_SETTINGS['PROMOTION_TIMEOUT']
 # Message Templates
 SYSTEM_MESSAGES = {
     'MAINTENANCE': """
-⚠️ **RSI API is Currently Unavailable**
+⚠️ **RSI Website is Currently Unavailable**
 
-The RSI API is experiencing downtime. This is a known issue that occurs daily 
+The RSI website is experiencing downtime. This is a known issue that occurs daily 
 from {start_time} UTC for approximately {duration} hours.
 
-Please try again later when the API service has been restored.
+Please try again later when the service has been restored.
 """,
     
     'UNLINKED_REMINDER': """
@@ -125,23 +125,22 @@ COMPARE_STATUS = {
     'missing': '⚠️'     # Missing from either Discord or RSI
 }
 
-# RSI API Configuration
-RSI_API = {
-    'BASE_URL': "https://api.starcitizen-api.com",
-    'VERSION': "v1",
-    'MODE': "live",
+# RSI Configuration
+RSI_CONFIG = {
     'ORGANIZATION_SID': "DRAXON",
     'MEMBERS_PER_PAGE': 32,
     'STATUS_URL': "https://status.robertsspaceindustries.com/",
     'FEED_URL': "https://status.robertsspaceindustries.com/index.xml",
     'MAINTENANCE_START': "22:00",  # UTC
-    'MAINTENANCE_DURATION': 3      # Hours
+    'MAINTENANCE_DURATION': 3,     # Hours
+    'BASE_URL': "https://robertsspaceindustries.com",
+    'USER_AGENT': f"DraXon_OCULUS/{APP_VERSION}"
 }
 
 # Cache Settings
 CACHE_SETTINGS = {
     'STATUS_TTL': 300,            # 5 minutes
-    'API_TTL': 3600,              # 1 hour
+    'SCRAPE_TTL': 3600,          # 1 hour
     'MEMBER_DATA_TTL': 3600,      # 1 hour
     'ORG_DATA_TTL': 7200,         # 2 hours
     'VERIFICATION_TTL': 86400     # 24 hours

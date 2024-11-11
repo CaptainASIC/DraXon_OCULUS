@@ -6,7 +6,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import logging
-import aiohttp
 import json
 import io
 from datetime import datetime, timedelta
@@ -16,8 +15,10 @@ import asyncio
 from src.utils.constants import (
     COMPARE_STATUS,
     CACHE_SETTINGS,
-    SYSTEM_MESSAGES
+    SYSTEM_MESSAGES,
+    RSI_CONFIG
 )
+from src.utils.rsi_scraper import RSIScraper
 from src.config.settings import get_settings
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -48,7 +49,7 @@ class LinkAccountModal(discord.ui.Modal, title='Link RSI Account'):
             user_info = await self.cog.get_user_info(self.handle.value)
             if not user_info:
                 await interaction.followup.send(
-                    "❌ Invalid RSI Handle or API error. Please check your handle and try again.",
+                    "❌ Invalid RSI Handle or RSI website error. Please check your handle and try again.",
                     ephemeral=True
                 )
                 return
@@ -74,138 +75,30 @@ class RSIIntegrationCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.settings = get_settings()
+        self.scraper = RSIScraper(self.bot.session, self.bot.redis)
         logger.info("RSI Integration cog initialized")
-
-    async def make_api_request(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict]:
-        """Make request to RSI API with retries and caching"""
-        cache_key = f"rsi_api:{endpoint}:{json.dumps(params or {})}"
-        
-        try:
-            # Check cache first
-            cached = await self.bot.redis.get(cache_key)
-            if cached:
-                return json.loads(cached)
-
-            # Construct URL with API key in path
-            url = f"{self.settings.rsi_api_base_url}/{self.settings.rsi_api_key}/v1/{self.settings.api_mode}/{endpoint}"
-            
-            logger.info(f"Making API request to: {url}")
-            
-            for attempt in range(3):
-                try:
-                    async with self.bot.session.get(url, params=params) as response:
-                        response_text = await response.text()
-                        logger.debug(f"API Response: {response_text}")
-                        
-                        if response.status == 200:
-                            try:
-                                data = json.loads(response_text)
-                                
-                                # Check if API request was successful
-                                if not data.get('success'):
-                                    logger.error(f"API request unsuccessful: {data}")
-                                    return None
-
-                                # Cache successful response
-                                await self.bot.redis.set(
-                                    cache_key,
-                                    json.dumps(data),
-                                    ex=CACHE_SETTINGS['API_TTL']
-                                )
-                                
-                                return data
-                            except json.JSONDecodeError as e:
-                                logger.error(f"Failed to parse API response: {e}")
-                                logger.error(f"Response text: {response_text}")
-                                return None
-                        elif response.status == 429:  # Rate limit
-                            retry_after = int(response.headers.get('Retry-After', 60))
-                            logger.warning(f"Rate limited, waiting {retry_after} seconds")
-                            await asyncio.sleep(retry_after)
-                        else:
-                            logger.error(f"API request failed with status {response.status}: {response_text}")
-                            await asyncio.sleep(2 ** attempt)
-                            
-                except Exception as e:
-                    logger.error(f"Request attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:  # Don't sleep on last attempt
-                        await asyncio.sleep(2 ** attempt)
-            
-            return None
-
-        except Exception as e:
-            logger.error(f"Error making API request: {e}")
-            return None
 
     async def get_org_info(self) -> Optional[Dict[str, Any]]:
         """Get organization information"""
         try:
-            # Check Redis cache first
-            cache_key = f'org_info:{self.settings.rsi_organization_sid}'
-            cached = await self.bot.redis.get(cache_key)
-            if cached:
-                return json.loads(cached)
-
-            # Make API request
-            response = await self.make_api_request(f"organization/{self.settings.rsi_organization_sid}")
-            if not response or not response.get('success'):
-                logger.error(f"Failed to get org info: {response}")
-                return None
-
-            data = response['data']
-            
-            # Cache the result
-            await self.bot.redis.set(
-                cache_key,
-                json.dumps(data),
-                ex=CACHE_SETTINGS['ORG_DATA_TTL']
-            )
-            
-            return data
-
+            return await self.scraper.get_organization_info(RSI_CONFIG['ORGANIZATION_SID'])
         except Exception as e:
             logger.error(f"Error fetching org info: {e}")
             return None
 
     async def get_user_info(self, handle: str) -> Optional[Dict[str, Any]]:
-        """Get user information from RSI API"""
+        """Get user information"""
         try:
-            # Check Redis cache first
-            cache_key = f'rsi_user:{handle.lower()}'
-            cached = await self.bot.redis.get(cache_key)
-            if cached:
-                return json.loads(cached)
-
-            # Make API request
-            response = await self.make_api_request(f"user/{handle}")
-            if not response:
-                logger.error(f"Failed to get user info for handle: {handle}")
-                return None
-
-            if not response.get('success'):
-                logger.error(f"API request unsuccessful for handle {handle}: {response}")
-                return None
-
-            data = response['data']
-            
-            # Cache the result
-            await self.bot.redis.set(
-                cache_key,
-                json.dumps(data),
-                ex=CACHE_SETTINGS['MEMBER_DATA_TTL']
-            )
-            
-            return data
-
+            return await self.scraper.get_user_info(handle)
         except Exception as e:
             logger.error(f"Error fetching user info: {e}")
             return None
 
     async def get_org_members(self) -> List[Dict[str, Any]]:
-        """Get all organization members from RSI API"""
+        """Get all organization members"""
         try:
             # Check Redis cache
-            cache_key = f'org_members:{self.settings.rsi_organization_sid}'
+            cache_key = f'org_members:{RSI_CONFIG["ORGANIZATION_SID"]}'
             cached = await self.bot.redis.get(cache_key)
             if cached:
                 return json.loads(cached)
@@ -214,26 +107,17 @@ class RSIIntegrationCog(commands.Cog):
             page = 1
             
             while True:
-                params = {'page': page}
-                data = await self.make_api_request(
-                    f"organization_members/{self.settings.rsi_organization_sid}",
-                    params
+                page_members = await self.scraper.get_organization_members(
+                    RSI_CONFIG['ORGANIZATION_SID'],
+                    page
                 )
                 
-                if not data:
-                    logger.error(f"Failed to get org members page {page}")
+                if not page_members:
                     break
 
-                if not data.get('success'):
-                    logger.error(f"API request unsuccessful for page {page}: {data}")
-                    break
-
-                if not data.get('data'):
-                    break
-
-                members.extend(data['data'])
+                members.extend(page_members)
                 
-                if len(data['data']) < 32:  # RSI API returns 32 members per page
+                if len(page_members) < RSI_CONFIG['MEMBERS_PER_PAGE']:
                     break
                     
                 page += 1
@@ -273,9 +157,9 @@ class RSIIntegrationCog(commands.Cog):
                 return False
 
             # Check DraXon membership
-            is_main_org = main_org.get('sid') == self.settings.rsi_organization_sid
+            is_main_org = main_org.get('sid') == RSI_CONFIG['ORGANIZATION_SID']
             is_affiliate = any(
-                org.get('sid') == self.settings.rsi_organization_sid 
+                org.get('sid') == RSI_CONFIG['ORGANIZATION_SID'] 
                 for org in affiliations
             )
 
@@ -291,7 +175,7 @@ class RSIIntegrationCog(commands.Cog):
             draxon_org = (
                 main_org if is_main_org else 
                 next(org for org in affiliations 
-                     if org.get('sid') == self.settings.rsi_organization_sid)
+                     if org.get('sid') == RSI_CONFIG['ORGANIZATION_SID'])
             )
 
             # Convert timestamp to datetime
@@ -701,8 +585,8 @@ class RSIIntegrationCog(commands.Cog):
         
         try:
             # Clear caches
-            await self.bot.redis.delete(f'org_members:{self.settings.rsi_organization_sid}')
-            await self.bot.redis.delete(f'org_info:{self.settings.rsi_organization_sid}')
+            await self.bot.redis.delete(f'org_members:{RSI_CONFIG["ORGANIZATION_SID"]}')
+            await self.bot.redis.delete(f'org_info:{RSI_CONFIG["ORGANIZATION_SID"]}')
             pattern = f'rsi_user:*'
             keys = await self.bot.redis.keys(pattern)
             if keys:
