@@ -1,6 +1,7 @@
 """RSI Scraper adapter for OCULUS"""
 
 import aiohttp
+import asyncio
 import logging
 import json
 from typing import Dict, List, Optional, Any
@@ -25,10 +26,18 @@ class RSIScraper:
         self.session = session
         self.redis = redis
         self.headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
             'User-Agent': RSI_CONFIG['USER_AGENT'],
             'Cache-Control': 'no-cache',
-            'Cookie': 'Rsi-Token='
+            'Cookie': 'Rsi-Token=',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
         }
 
     async def _make_request(self, url: str, method: str = "get", json_data: Dict = None) -> Optional[aiohttp.ClientResponse]:
@@ -43,33 +52,44 @@ class RSIScraper:
             Optional[aiohttp.ClientResponse]: Response if successful, None otherwise
         """
         try:
+            timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
             for attempt in range(3):
                 try:
                     if method.lower() == "get":
-                        async with self.session.get(url, headers=self.headers) as response:
+                        async with self.session.get(url, headers=self.headers, timeout=timeout) as response:
                             if response.status == 200:
                                 return response
                             elif response.status == 429:  # Rate limit
-                                await asyncio.sleep(2 ** attempt)
+                                wait_time = 2 ** attempt
+                                logger.warning(f"Rate limited, waiting {wait_time} seconds")
+                                await asyncio.sleep(wait_time)
                             else:
-                                logger.error(f"Request failed with status {response.status}")
-                                return None
+                                logger.error(f"Request failed with status {response.status}: {await response.text()}")
+                                if attempt < 2:  # Only sleep if we're going to retry
+                                    await asyncio.sleep(2 ** attempt)
                     else:  # POST
-                        async with self.session.post(url, headers=self.headers, json=json_data) as response:
+                        async with self.session.post(url, headers=self.headers, json=json_data, timeout=timeout) as response:
                             if response.status == 200:
                                 return response
                             elif response.status == 429:  # Rate limit
-                                await asyncio.sleep(2 ** attempt)
+                                wait_time = 2 ** attempt
+                                logger.warning(f"Rate limited, waiting {wait_time} seconds")
+                                await asyncio.sleep(wait_time)
                             else:
-                                logger.error(f"Request failed with status {response.status}")
-                                return None
-                except Exception as e:
-                    logger.error(f"Request attempt {attempt + 1} failed: {e}")
+                                logger.error(f"Request failed with status {response.status}: {await response.text()}")
+                                if attempt < 2:  # Only sleep if we're going to retry
+                                    await asyncio.sleep(2 ** attempt)
+                except asyncio.TimeoutError:
+                    logger.error(f"Request timed out on attempt {attempt + 1}")
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                except aiohttp.ClientError as e:
+                    logger.error(f"Client error on attempt {attempt + 1}: {str(e)}")
                     if attempt < 2:
                         await asyncio.sleep(2 ** attempt)
             return None
         except Exception as e:
-            logger.error(f"Error making request: {e}")
+            logger.error(f"Error making request: {str(e)}")
             return None
 
     async def get_organization_info(self, sid: str) -> Optional[Dict[str, Any]]:
@@ -168,7 +188,7 @@ class RSIScraper:
             return result
 
         except Exception as e:
-            logger.error(f"Error fetching org info: {e}")
+            logger.error(f"Error fetching org info: {str(e)}")
             return None
 
     async def get_organization_members(self, sid: str, page: int = 1) -> List[Dict[str, Any]]:
@@ -250,7 +270,7 @@ class RSIScraper:
                     result.append(user)
 
                 except Exception as e:
-                    logger.error(f"Error processing member: {e}")
+                    logger.error(f"Error processing member: {str(e)}")
                     continue
 
             # Cache the result
@@ -263,7 +283,7 @@ class RSIScraper:
             return result
 
         except Exception as e:
-            logger.error(f"Error fetching org members: {e}")
+            logger.error(f"Error fetching org members: {str(e)}")
             return []
 
     async def get_user_info(self, handle: str) -> Optional[Dict[str, Any]]:
@@ -359,5 +379,5 @@ class RSIScraper:
             return result
 
         except Exception as e:
-            logger.error(f"Error fetching user info: {e}")
+            logger.error(f"Error fetching user info: {str(e)}")
             return None

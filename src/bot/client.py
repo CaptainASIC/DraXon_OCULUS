@@ -74,12 +74,37 @@ class DraXonOCULUSBot(commands.Bot):
         """Initial setup when bot starts"""
         logger.info("Setup hook starting...")
         try:
-            # Initialize aiohttp session with SSL context if provided
-            if self.ssl_context:
-                self.session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=self.ssl_context))
-            else:
-                self.session = aiohttp.ClientSession()
-            logger.info("HTTP session initialized")
+            # Initialize aiohttp session with optimized settings
+            timeout = aiohttp.ClientTimeout(
+                total=60,      # Total timeout for the whole request
+                connect=10,    # Timeout for connecting to the server
+                sock_read=30,  # Timeout for reading from the socket
+                sock_connect=10  # Timeout for connecting to the socket
+            )
+            
+            connector = aiohttp.TCPConnector(
+                ssl=self.ssl_context if self.ssl_context else None,
+                limit=100,  # Maximum number of concurrent connections
+                force_close=False,  # Keep connections alive
+                enable_cleanup_closed=True,  # Clean up closed connections
+                keepalive_timeout=30,  # Keep connections alive for 30 seconds
+                ttl_dns_cache=300,  # Cache DNS results for 5 minutes
+                limit_per_host=10  # Maximum concurrent connections per host
+            )
+            
+            self.session = aiohttp.ClientSession(
+                timeout=timeout,
+                connector=connector,
+                headers={
+                    'User-Agent': f'DraXon_OCULUS/{APP_VERSION}',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+            )
+            logger.info("HTTP session initialized with optimized settings")
             
             # Load stored channel IDs first
             await self._load_channel_ids()
