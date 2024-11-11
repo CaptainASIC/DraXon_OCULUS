@@ -50,7 +50,7 @@ class DraXonOCULUSBot(commands.Bot):
         # Store connections and settings
         self.db = db_pool
         self.redis = redis_pool
-        self.ssl_context = ssl_context or ssl.create_default_context(cafile=certifi.where())
+        self.ssl_context = ssl_context
         self.settings = settings
         
         # Initialize session as None (will be set in setup_hook)
@@ -75,22 +75,28 @@ class DraXonOCULUSBot(commands.Bot):
         """Initial setup when bot starts"""
         logger.info("Setup hook starting...")
         try:
-            # Initialize aiohttp session with SSL verification
+            # Initialize aiohttp session with basic settings
             connector = aiohttp.TCPConnector(
-                ssl=self.ssl_context,
+                ssl=False,  # Disable SSL verification like requests library
                 force_close=False,
                 enable_cleanup_closed=True,
-                verify_ssl=True
+                limit=100,  # Maximum number of connections
+                ttl_dns_cache=300,  # Cache DNS results for 5 minutes
+                verify_ssl=False  # Also disable SSL verification here
             )
             
-            # Create session with default headers
+            # Create session with default timeout
+            timeout = aiohttp.ClientTimeout(
+                total=5,  # Match the working API's timeout
+                connect=5,
+                sock_connect=5,
+                sock_read=5
+            )
+            
             self.session = aiohttp.ClientSession(
                 connector=connector,
-                headers={
-                    'Accept': '*/*',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Connection': 'keep-alive'
-                }
+                timeout=timeout,
+                trust_env=True  # Trust environment variables for proxy settings
             )
             logger.info("HTTP session initialized")
             

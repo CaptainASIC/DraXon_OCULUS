@@ -1,13 +1,13 @@
 """RSI Scraper adapter for OCULUS"""
 
-import aiohttp
-import asyncio
 import logging
 import json
 from typing import Dict, List, Optional, Any
 from urllib.parse import urljoin
 from lxml import html, etree
 import re
+import requests
+import os
 
 from .constants import RSI_CONFIG, CACHE_SETTINGS
 
@@ -21,14 +21,13 @@ class RSIScraper:
     __url_search_orgs = "https://robertsspaceindustries.com/api/orgs/getOrgs"
     __url_organization_members = "https://robertsspaceindustries.com/api/orgs/getOrgMembers"
     
-    def __init__(self, session: aiohttp.ClientSession, redis):
+    def __init__(self, session, redis):
         """Initialize the scraper
         
         Args:
-            session (aiohttp.ClientSession): Aiohttp session for requests
+            session: aiohttp session (not used, kept for compatibility)
             redis: Redis connection for caching
         """
-        self.session = session
         self.redis = redis
         # Match the working API's headers exactly
         self.headers = {
@@ -38,25 +37,7 @@ class RSIScraper:
             'Cookie': 'Rsi-Token='
         }
 
-    @staticmethod
-    def convert_val(val: object) -> str:
-        """Convert an object to HTTP parameter.
-        
-        Args:
-            val (object): A value to convert to str.
-            
-        Returns:
-            str: A string ready for HTTP request.
-        """
-        if val is None:
-            return ""
-        if isinstance(val, list) and len(val) == 1:
-            if isinstance(val[0], int):
-                return str(val[0])
-            return val[0]
-        return str(val)
-
-    async def _make_request(self, url: str, method: str = "get", json_data: Dict = None) -> Optional[aiohttp.ClientResponse]:
+    def _make_request(self, url: str, method: str = "get", json_data: Dict = None) -> Optional[requests.Response]:
         """Make a request to RSI website
         
         Args:
@@ -65,49 +46,34 @@ class RSIScraper:
             json_data (Dict, optional): JSON data for POST requests. Defaults to None.
         
         Returns:
-            Optional[aiohttp.ClientResponse]: Response if successful, None otherwise
+            Optional[requests.Response]: Response if successful, None otherwise
         """
         try:
-            # Match the working API's 5-second timeout
-            timeout = aiohttp.ClientTimeout(total=5)
-            
-            # Convert any values in json_data to HTTP-friendly format
-            if json_data:
-                json_data = {k: self.convert_val(v) for k, v in json_data.items()}
-            
-            for attempt in range(3):
-                try:
-                    if method.lower() == "get":
-                        async with self.session.get(url, headers=self.headers, timeout=timeout) as response:
-                            if response.status == 200:
-                                return response
-                            elif response.status == 429:  # Rate limit
-                                await asyncio.sleep(2 ** attempt)
-                            else:
-                                logger.error(f"Request failed with status {response.status}")
-                                if response.status == 404:
-                                    return None
-                                await asyncio.sleep(2 ** attempt)
-                    else:  # POST
-                        async with self.session.post(url, headers=self.headers, json=json_data, timeout=timeout) as response:
-                            if response.status == 200:
-                                return response
-                            elif response.status == 429:  # Rate limit
-                                await asyncio.sleep(2 ** attempt)
-                            else:
-                                logger.error(f"Request failed with status {response.status}")
-                                if response.status == 404:
-                                    return None
-                                await asyncio.sleep(2 ** attempt)
-                except asyncio.TimeoutError:
-                    logger.error(f"Request timed out on attempt {attempt + 1}")
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                except Exception as e:
-                    logger.error(f"Request attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-            return None
+            args = {
+                "url": url,
+                "headers": self.headers,
+                "stream": False,
+                "timeout": 5  # Match the working API's timeout
+            }
+
+            if json_data is not None:
+                args["json"] = json_data
+
+            # Handle proxy settings like the working API
+            proxies = {}
+            if os.getenv('HTTP_PROXY'):
+                proxies = {'http': os.environ['HTTP_PROXY']}
+
+            req = None
+            if method.lower() == "post":
+                req = requests.post(proxies=proxies, **args)
+            elif method.lower() == "get":
+                req = requests.get(proxies=proxies, **args)
+            else:
+                return None
+
+            return req
+
         except Exception as e:
             logger.error(f"Error making request: {e}")
             return None
@@ -130,12 +96,16 @@ class RSIScraper:
 
             # Make request using the direct URL pattern
             url = self.__url_organization.format(sid)
-            response = await self._make_request(url, "get")
-            if not response or response.status == 404:
+            response = self._make_request(url, "get")
+            if not response:
+                return None
+            if response.status_code == 404:
                 return {}
+            if response.status_code != 200:
+                return None
 
-            content = await response.text()
-            tree = html.fromstring(content)
+            # get html contents
+            tree = html.fromstring(response.content)
 
             # Extract organization info
             result = {
@@ -194,9 +164,9 @@ class RSIScraper:
                 "sort": ""
             }
             
-            search_response = await self._make_request(self.__url_search_orgs, "post", search_data)
-            if search_response:
-                search_data = await search_response.json()
+            search_response = self._make_request(self.__url_search_orgs, "post", search_data)
+            if search_response and search_response.status_code == 200:
+                search_data = search_response.json()
                 if search_data.get('success') == 1:
                     search_tree = html.fromstring(search_data['data']['html'])
                     for org_data in search_tree.xpath('//*[contains(@class, "org-cell")]'):
@@ -244,11 +214,13 @@ class RSIScraper:
                 "page": page
             }
 
-            response = await self._make_request(self.__url_organization_members, "post", json_data)
+            response = self._make_request(self.__url_organization_members, "post", json_data)
             if not response:
                 return []
+            if response.status_code != 200:
+                return []
 
-            data = await response.json()
+            data = response.json()
             if data.get('success') != 1:
                 if data.get('code') == 'ErrApiThrottled':
                     logger.warning("Failed, retrying")
@@ -351,12 +323,13 @@ class RSIScraper:
 
             # Make request to user profile page
             url = f"{RSI_CONFIG['BASE_URL']}/citizens/{handle}"
-            response = await self._make_request(url)
+            response = self._make_request(url)
             if not response:
                 return None
+            if response.status_code != 200:
+                return None
 
-            content = await response.text()
-            tree = html.fromstring(content)
+            tree = html.fromstring(response.content)
 
             # Extract user info
             result = {
