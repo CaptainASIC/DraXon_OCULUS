@@ -14,7 +14,7 @@ import json
 import aiohttp
 
 from src.utils.constants import (
-    RSI_API,
+    RSI_CONFIG,
     STATUS_EMOJIS,
     CACHE_SETTINGS,
     CHANNELS_CONFIG
@@ -50,7 +50,7 @@ class RSIStatusMonitorCog(commands.Cog):
             logger.error("HTTP session not initialized")
             return None
 
-        request_url = url or RSI_API['STATUS_URL']
+        request_url = url or RSI_CONFIG['STATUS_URL']
         
         for attempt in range(3):  # 3 retries
             try:
@@ -78,13 +78,13 @@ class RSIStatusMonitorCog(commands.Cog):
         try:
             now = datetime.utcnow().time()
             maintenance_start = datetime.strptime(
-                RSI_API['MAINTENANCE_START'], 
+                RSI_CONFIG['MAINTENANCE_START'], 
                 "%H:%M"
             ).time()
             
             maintenance_end = (
                 datetime.combine(datetime.utcnow().date(), maintenance_start) +
-                timedelta(hours=RSI_API['MAINTENANCE_DURATION'])
+                timedelta(hours=RSI_CONFIG['MAINTENANCE_DURATION'])
             ).time()
             
             if maintenance_end < maintenance_start:
@@ -305,8 +305,8 @@ class RSIStatusMonitorCog(commands.Cog):
             if await self.check_maintenance_window():
                 await interaction.followup.send(
                     "⚠️ RSI systems are currently in maintenance window.\n"
-                    f"Maintenance period: {RSI_API['MAINTENANCE_START']} UTC "
-                    f"for {RSI_API['MAINTENANCE_DURATION']} hours.",
+                    f"Maintenance period: {RSI_CONFIG['MAINTENANCE_START']} UTC "
+                    f"for {RSI_CONFIG['MAINTENANCE_DURATION']} hours.",
                     ephemeral=True
                 )
                 return
