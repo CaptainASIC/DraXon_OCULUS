@@ -2,6 +2,9 @@
 APP_VERSION = "2.0.5"
 BUILD_DATE = "Nov 2024"
 
+# Bot Description
+BOT_DESCRIPTION = "Organizational Command & Unified Leadership Implementation System"
+
 # Role Configuration
 ROLE_HIERARCHY = [
     'Screening',

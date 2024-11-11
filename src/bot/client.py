@@ -16,6 +16,7 @@ import json
 
 from src.utils.constants import (
     APP_VERSION,
+    BOT_DESCRIPTION,
     BOT_REQUIRED_PERMISSIONS,
     CACHE_SETTINGS
 )
@@ -189,7 +190,7 @@ class DraXonOCULUSBot(commands.Bot):
         logger.info(f'DraXon OCULUS Bot v{APP_VERSION} has connected to Discord!')
         try:
             # Set custom activity
-            activity = discord.CustomActivity(name=f"Ver. {APP_VERSION} Processing...")
+            activity = discord.CustomActivity(name=BOT_DESCRIPTION)
             await self.change_presence(activity=activity)
             logger.info("Bot activity status set successfully")
             
