@@ -2,7 +2,7 @@
 APP_VERSION = "2.0.5"
 BUILD_DATE = "Nov 2024"
 
-# Bot Description
+# Bot Description - Simple format like PULSE
 BOT_DESCRIPTION = "Organizational Command & Unified Leadership Implementation System"
 
 # Role Configuration
@@ -118,7 +118,6 @@ STATUS_EMOJIS = {
     'maintenance': '🔧',
     'unknown': '❓'
 }
-
 
 COMPARE_STATUS = {
     'match': '✅',      # Member found in both Discord and RSI

@@ -24,8 +24,6 @@ from src.utils.constants import (
 logger = logging.getLogger('DraXon_OCULUS')
 
 class DraXonOCULUSBot(commands.Bot):
-    """Main bot class for DraXon OCULUS (Organizational Command & Unified Leadership Implementation System)"""
-    
     def __init__(self, 
                  db_pool: asyncpg.Pool,
                  redis_pool: redis.Redis,
@@ -43,6 +41,7 @@ class DraXonOCULUSBot(commands.Bot):
         super().__init__(
             command_prefix='!',
             intents=intents,
+            description=BOT_DESCRIPTION,
             *args, 
             **kwargs
         )
@@ -188,28 +187,16 @@ class DraXonOCULUSBot(commands.Bot):
             return
             
         logger.info(f'DraXon OCULUS Bot v{APP_VERSION} has connected to Discord!')
-        try:
-            # Set custom activity
-            activity = discord.CustomActivity(name=BOT_DESCRIPTION)
-            await self.change_presence(activity=activity)
-            logger.info("Bot activity status set successfully")
-            
-            # Record ready state
-            self._ready = True
-            
-            # Store startup info in Redis
-            startup_info = {
-                'version': APP_VERSION,
-                'start_time': self.start_time.isoformat(),
-                'guilds': len(self.guilds),
-                'ready_time': datetime.utcnow().isoformat()
-            }
-            
-            await self.redis.hmset('bot_info', startup_info)
-            logger.info("Startup info recorded")
-            
-        except Exception as e:
-            logger.error(f"Error in on_ready: {e}")
+        
+        # Set custom activity - exactly matching PULSE implementation
+        activity = discord.CustomActivity(name=BOT_DESCRIPTION)
+        await self.change_presence(activity=activity)
+        
+        # Log some statistics like PULSE
+        logger.info(f"Connected to {len(self.guilds)} guilds")
+        logger.info(f"Serving {sum(g.member_count for g in self.guilds)} users")
+        
+        self._ready = True
 
     async def verify_permissions(self, guild: discord.Guild) -> Tuple[bool, List[str]]:
         """Verify bot has required permissions in guild"""
