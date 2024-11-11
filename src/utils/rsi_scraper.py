@@ -16,6 +16,11 @@ logger = logging.getLogger('DraXon_OCULUS')
 class RSIScraper:
     """Handles direct RSI website scraping"""
     
+    # Match the working API's URL patterns
+    __url_organization = "https://robertsspaceindustries.com/orgs/{0}"
+    __url_search_orgs = "https://robertsspaceindustries.com/api/orgs/getOrgs"
+    __url_organization_members = "https://robertsspaceindustries.com/api/orgs/getOrgMembers"
+    
     def __init__(self, session: aiohttp.ClientSession, redis):
         """Initialize the scraper
         
@@ -25,22 +30,31 @@ class RSIScraper:
         """
         self.session = session
         self.redis = redis
+        # Match the working API's headers exactly
         self.headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Host': 'robertsspaceindustries.com',
-            'Origin': 'https://robertsspaceindustries.com',
-            'Referer': 'https://robertsspaceindustries.com',
             'User-Agent': RSI_CONFIG['USER_AGENT'],
             'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'same-origin',
-            'Connection': 'keep-alive',
             'Cookie': 'Rsi-Token='
         }
+
+    @staticmethod
+    def convert_val(val: object) -> str:
+        """Convert an object to HTTP parameter.
+        
+        Args:
+            val (object): A value to convert to str.
+            
+        Returns:
+            str: A string ready for HTTP request.
+        """
+        if val is None:
+            return ""
+        if isinstance(val, list) and len(val) == 1:
+            if isinstance(val[0], int):
+                return str(val[0])
+            return val[0]
+        return str(val)
 
     async def _make_request(self, url: str, method: str = "get", json_data: Dict = None) -> Optional[aiohttp.ClientResponse]:
         """Make a request to RSI website
@@ -54,34 +68,41 @@ class RSIScraper:
             Optional[aiohttp.ClientResponse]: Response if successful, None otherwise
         """
         try:
+            # Match the working API's 5-second timeout
+            timeout = aiohttp.ClientTimeout(total=5)
+            
+            # Convert any values in json_data to HTTP-friendly format
+            if json_data:
+                json_data = {k: self.convert_val(v) for k, v in json_data.items()}
+            
             for attempt in range(3):
                 try:
                     if method.lower() == "get":
-                        async with self.session.get(url, headers=self.headers) as response:
+                        async with self.session.get(url, headers=self.headers, timeout=timeout) as response:
                             if response.status == 200:
                                 return response
                             elif response.status == 429:  # Rate limit
                                 await asyncio.sleep(2 ** attempt)
                             else:
                                 logger.error(f"Request failed with status {response.status}")
-                                return None
+                                if response.status == 404:
+                                    return None
+                                await asyncio.sleep(2 ** attempt)
                     else:  # POST
-                        # Update headers for POST request
-                        post_headers = dict(self.headers)
-                        post_headers.update({
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json, text/plain, */*',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        })
-                        
-                        async with self.session.post(url, headers=post_headers, json=json_data) as response:
+                        async with self.session.post(url, headers=self.headers, json=json_data, timeout=timeout) as response:
                             if response.status == 200:
                                 return response
                             elif response.status == 429:  # Rate limit
                                 await asyncio.sleep(2 ** attempt)
                             else:
                                 logger.error(f"Request failed with status {response.status}")
-                                return None
+                                if response.status == 404:
+                                    return None
+                                await asyncio.sleep(2 ** attempt)
+                except asyncio.TimeoutError:
+                    logger.error(f"Request timed out on attempt {attempt + 1}")
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
                 except Exception as e:
                     logger.error(f"Request attempt {attempt + 1} failed: {e}")
                     if attempt < 2:
@@ -107,11 +128,11 @@ class RSIScraper:
             if cached:
                 return json.loads(cached)
 
-            # Make request
-            url = f"{RSI_CONFIG['BASE_URL']}/orgs/{sid}"
-            response = await self._make_request(url)
-            if not response:
-                return None
+            # Make request using the direct URL pattern
+            url = self.__url_organization.format(sid)
+            response = await self._make_request(url, "get")
+            if not response or response.status == 404:
+                return {}
 
             content = await response.text()
             tree = html.fromstring(content)
@@ -158,14 +179,22 @@ class RSIScraper:
                 result["focus"]["secondary"]["name"] = v.strip()
                 break
 
-            # Get member count from search API
-            search_url = f"{RSI_CONFIG['BASE_URL']}/api/orgs/getOrgs"
+            # Get member count using the search API
             search_data = {
+                "activity": [],
+                "commitment": [],
+                "language": [],
+                "model": [],
+                "pagesize": 12,
+                "recruiting": [],
+                "roleplay": [],
                 "search": sid,
-                "pagesize": 1,
-                "page": 1
+                "page": 1,
+                "size": [],
+                "sort": ""
             }
-            search_response = await self._make_request(search_url, "post", search_data)
+            
+            search_response = await self._make_request(self.__url_search_orgs, "post", search_data)
             if search_response:
                 search_data = await search_response.json()
                 if search_data.get('success') == 1:
@@ -207,46 +236,61 @@ class RSIScraper:
             if cached:
                 return json.loads(cached)
 
-            # Make request
-            url = f"{RSI_CONFIG['BASE_URL']}/api/orgs/getOrgMembers"
+            # Make request using direct URL
             json_data = {
                 "symbol": sid,
                 "search": "",
-                "pagesize": RSI_CONFIG['MEMBERS_PER_PAGE'],
+                "pagesize": 32,  # Match the working API's page size
                 "page": page
             }
 
-            response = await self._make_request(url, "post", json_data)
+            response = await self._make_request(self.__url_organization_members, "post", json_data)
             if not response:
                 return []
 
             data = await response.json()
-            if data.get('success') != 1 or not data.get('data', {}).get('html'):
+            if data.get('success') != 1:
+                if data.get('code') == 'ErrApiThrottled':
+                    logger.warning("Failed, retrying")
+                else:
+                    logger.error(f"Failed ({data.get('msg')})")
+                return []
+
+            if not data.get('data', {}).get('html', '').strip():
                 return []
 
             tree = html.fromstring(data['data']['html'])
             result = []
 
-            for member_item in tree.xpath("//*[contains(@class, 'member-item')]"):
+            # Match the working API's member parsing logic
+            index = 1
+            for _ in tree.xpath("//*[contains(@class, 'member-item')]"):
                 try:
                     user = {}
                     
                     # Get handle
-                    handle = member_item.xpath(".//*[contains(@class, 'nick')]/text()")
+                    handle = tree.xpath(f"//*[contains(@class, 'member-item')][{index}]//*[contains(@class, 'nick')]/text()")
                     if not handle:
                         continue
                     user["handle"] = handle[0].strip()
+                    
+                    # Skip if handle already exists
+                    if any(existing["handle"] == user["handle"] for existing in result):
+                        continue
 
                     # Get display name
-                    display = member_item.xpath(".//*[contains(@class, ' name')]/text()")
+                    display = tree.xpath(f"//*[contains(@class, 'member-item')][{index}]//*[contains(@class, ' name')]/text()")
                     user["display"] = display[0].strip() if display else user["handle"]
 
                     # Get rank
-                    rank = member_item.xpath(".//*[contains(@class, 'rank')]/text()")
-                    user["rank"] = rank[0].strip() if rank else ""
+                    rank = tree.xpath(f"//*[contains(@class, 'member-item')][{index}]//*[contains(@class, 'rank')]")
+                    if rank and rank[0].attrib['class'] == 'rank':
+                        user["rank"] = rank[0].text.strip()
+                    else:
+                        user["rank"] = ""
 
                     # Get stars
-                    stars_elem = member_item.xpath(".//*[contains(@class, 'stars') and contains(@style, .)]")
+                    stars_elem = tree.xpath(f"//*[contains(@class, 'member-item')][{index}]//*[contains(@class, 'stars') and contains(@style, .)]")
                     if stars_elem:
                         style = stars_elem[0].attrib["style"]
                         match = re.search(r":\s*([0-9]*)\%", style, re.IGNORECASE)
@@ -257,16 +301,20 @@ class RSIScraper:
 
                     # Get roles
                     user["roles"] = []
-                    roles = member_item.xpath(".//*[contains(@class, 'rolelist')]/li/text()")
+                    roles = tree.xpath(f"//*[contains(@class, 'member-item')][{index}]//*[contains(@class, 'rolelist')]/li/text()")
                     for role in roles:
                         user["roles"].append(role.strip())
 
                     # Get image
-                    image = member_item.xpath(".//img/@src")
+                    image = tree.xpath(f"//*[contains(@class, 'member-item')][{index}]//img/@src")
                     if image:
                         user["image"] = urljoin(RSI_CONFIG['BASE_URL'], image[0].strip())
 
-                    result.append(user)
+                    # Only add if we have valid data
+                    if user and user["handle"] and user["handle"] != "":
+                        result.append(user)
+                    
+                    index += 1
 
                 except Exception as e:
                     logger.error(f"Error processing member: {e}")

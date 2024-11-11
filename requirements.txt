@@ -14,8 +14,9 @@ redis>=5.0.1
 aiohttp>=3.9.1
 feedparser>=6.0.10
 beautifulsoup4>=4.12.2
-lxml>=5.1.0
+lxml>=4.6.3
 brotli>=1.1.0
+jsonschema>=4.17.3
 
 # Date/Time Handling
 pytz>=2024.1
