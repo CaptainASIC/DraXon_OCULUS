@@ -72,8 +72,7 @@ async def verify_env(settings: Settings) -> None:
             'discord_token',
             'postgres_user',
             'postgres_password',
-            'postgres_db',
-            'rsi_api_key'
+            'postgres_db'
         ]
         
         missing = []
