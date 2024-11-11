@@ -18,35 +18,31 @@ class CommandsCog(commands.Cog):
         logger.info("Commands cog initialized")
 
     @app_commands.command(
-        name="oculus-about",
-        description="Display information about DraXon OCULUS"
+        name="draxon-help",
+        description="Display available DraXon OCULUS commands"
     )
-    async def about(self, interaction: discord.Interaction):
-        """Display bot information and available commands"""
+    async def help(self, interaction: discord.Interaction):
+        """Display available commands based on user's role"""
         try:
             # Check if user has Magnate role
             is_magnate = discord.utils.get(interaction.user.roles, name="Magnate") is not None
             
             embed = discord.Embed(
-                title="🔍 DraXon OCULUS",
-                description=BOT_DESCRIPTION,
+                title="🔍 DraXon OCULUS Commands",
+                description="Available commands for your role:",
                 color=discord.Color.blue(),
                 timestamp=datetime.utcnow()
             )
             
-            # Add version info
-            embed.add_field(
-                name="Version Info",
-                value=f"Version: {APP_VERSION}\nBuild Date: {BUILD_DATE}",
-                inline=False
-            )
-            
             # Add basic commands for all users
             basic_commands = (
-                "🔗 `/draxon-link` - Link your RSI account\n"
+                "🔗 `/draxon-link`\n"
+                "Link your RSI account with Discord\n\n"
+                "❓ `/draxon-help`\n"
+                "Display this help message"
             )
             embed.add_field(
-                name="Available Commands",
+                name="Basic Commands",
                 value=basic_commands,
                 inline=False
             )
@@ -54,9 +50,12 @@ class CommandsCog(commands.Cog):
             # Add management commands for Magnates
             if is_magnate:
                 management_commands = (
-                    "📊 `/draxon-org` - Display organization member list\n"
-                    "🔄 `/draxon-compare` - Compare Discord and RSI members\n"
-                    "🔄 `/draxon-refresh` - Refresh RSI organization data"
+                    "📊 `/draxon-org`\n"
+                    "Display organization member list\n\n"
+                    "🔄 `/draxon-compare`\n"
+                    "Compare Discord and RSI members\n\n"
+                    "🔄 `/draxon-refresh`\n"
+                    "Refresh RSI organization data"
                 )
                 embed.add_field(
                     name="Management Commands",
@@ -64,28 +63,15 @@ class CommandsCog(commands.Cog):
                     inline=False
                 )
             
-            # Add bot statistics
-            stats = await self.bot.get_bot_stats()
-            stats_text = (
-                f"Guilds: {stats.get('guilds', 0)}\n"
-                f"Total Members: {stats.get('total_members', 0)}\n"
-                f"Uptime: {int(stats.get('uptime', 0))} seconds"
-            )
-            embed.add_field(
-                name="Statistics",
-                value=stats_text,
-                inline=False
-            )
-            
-            # Add footer
-            embed.set_footer(text="DraXon Industries")
+            # Add footer with version
+            embed.set_footer(text=f"DraXon OCULUS v{APP_VERSION}")
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
             
         except Exception as e:
-            logger.error(f"Error in about command: {e}")
+            logger.error(f"Error in help command: {e}")
             await interaction.response.send_message(
-                "❌ An error occurred while fetching bot information.",
+                "❌ An error occurred while fetching command information.",
                 ephemeral=True
             )
 
