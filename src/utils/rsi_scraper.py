@@ -26,9 +26,19 @@ class RSIScraper:
         self.session = session
         self.redis = redis
         self.headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Host': 'robertsspaceindustries.com',
+            'Origin': 'https://robertsspaceindustries.com',
+            'Referer': 'https://robertsspaceindustries.com',
             'User-Agent': RSI_CONFIG['USER_AGENT'],
             'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Connection': 'keep-alive',
             'Cookie': 'Rsi-Token='
         }
 
@@ -56,7 +66,15 @@ class RSIScraper:
                                 logger.error(f"Request failed with status {response.status}")
                                 return None
                     else:  # POST
-                        async with self.session.post(url, headers=self.headers, json=json_data) as response:
+                        # Update headers for POST request
+                        post_headers = dict(self.headers)
+                        post_headers.update({
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json, text/plain, */*',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        })
+                        
+                        async with self.session.post(url, headers=post_headers, json=json_data) as response:
                             if response.status == 200:
                                 return response
                             elif response.status == 429:  # Rate limit

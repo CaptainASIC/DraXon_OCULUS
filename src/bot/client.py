@@ -13,6 +13,7 @@ import ssl
 from datetime import datetime
 import aiohttp
 import json
+import certifi
 
 from src.utils.constants import (
     APP_VERSION,
@@ -49,7 +50,7 @@ class DraXonOCULUSBot(commands.Bot):
         # Store connections and settings
         self.db = db_pool
         self.redis = redis_pool
-        self.ssl_context = ssl_context
+        self.ssl_context = ssl_context or ssl.create_default_context(cafile=certifi.where())
         self.settings = settings
         
         # Initialize session as None (will be set in setup_hook)
@@ -74,14 +75,23 @@ class DraXonOCULUSBot(commands.Bot):
         """Initial setup when bot starts"""
         logger.info("Setup hook starting...")
         try:
-            # Initialize aiohttp session with basic settings
+            # Initialize aiohttp session with SSL verification
             connector = aiohttp.TCPConnector(
-                ssl=self.ssl_context if self.ssl_context else None,
+                ssl=self.ssl_context,
                 force_close=False,
-                enable_cleanup_closed=True
+                enable_cleanup_closed=True,
+                verify_ssl=True
             )
             
-            self.session = aiohttp.ClientSession(connector=connector)
+            # Create session with default headers
+            self.session = aiohttp.ClientSession(
+                connector=connector,
+                headers={
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive'
+                }
+            )
             logger.info("HTTP session initialized")
             
             # Load stored channel IDs first
