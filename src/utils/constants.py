@@ -12,6 +12,16 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 LOG_DIR = os.path.join(ROOT_DIR, 'logs')
 DATA_DIR = os.path.join(ROOT_DIR, 'data')
 
+# Database settings
+DB_SETTINGS = {
+    'MIN_CONNECTIONS': 5,
+    'MAX_CONNECTIONS': 20,
+    'MAX_QUERIES': 50000,
+    'TIMEOUT': 30,  # seconds
+    'COMMAND_TIMEOUT': 30,  # seconds
+    'POOL_RECYCLE': 300  # 5 minutes
+}
+
 # Bot required permissions
 BOT_REQUIRED_PERMISSIONS = [
     'manage_channels',
@@ -61,7 +71,11 @@ CHANNEL_PERMISSIONS = {
 CACHE_SETTINGS = {
     'STATUS_TTL': 300,  # 5 minutes
     'INCIDENT_TTL': 3600,  # 1 hour
-    'MEMBER_TTL': 3600  # 1 hour
+    'MEMBER_TTL': 3600,  # 1 hour
+    'RETRY_ATTEMPTS': 3,
+    'RETRY_DELAY': 1,  # seconds
+    'POOL_SIZE': 10,
+    'POOL_TIMEOUT': 30  # seconds
 }
 
 # Status emojis
