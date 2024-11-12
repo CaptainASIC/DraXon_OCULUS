@@ -52,7 +52,11 @@ CACHE_SETTINGS = {
     'REDIS_ENCODING': 'utf-8',
     'REDIS_DECODE_RESPONSES': True,
     'REDIS_RETRY_ON_TIMEOUT': True,
-    'REDIS_RETRY_ON_ERROR': True
+    'REDIS_RETRY_ON_ERROR': True,
+    'REDIS_TIMEOUT': 5,  # seconds
+    'REDIS_CONNECT_TIMEOUT': 5,  # seconds
+    'REDIS_BUSY_WAIT_TIMEOUT': 5,  # seconds
+    'REDIS_IDLE_CHECK_INTERVAL': 60  # seconds
 }
 
 # Bot required permissions
