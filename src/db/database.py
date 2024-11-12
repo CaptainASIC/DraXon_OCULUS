@@ -6,7 +6,7 @@ import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from src.utils.constants import DB_SETTINGS
+from src.utils.constants import DB_SETTINGS, CACHE_SETTINGS
 from src.config.settings import get_settings
 from .init_schema import init_database
 
@@ -93,25 +93,38 @@ async def init_db(database_url: str) -> asyncpg.Pool:
         raise
 
 async def init_redis(redis_url: str) -> redis.Redis:
-    """Initialize Redis connection"""
-    try:
-        # Create Redis connection
-        redis_client = redis.Redis.from_url(
-            redis_url,
-            decode_responses=True,  # Automatically decode responses to strings
-            socket_timeout=5,
-            socket_connect_timeout=5
-        )
-        
-        # Test the connection
-        await redis_client.ping()
-        
-        logger.info("Redis connection initialized successfully")
-        return redis_client
-        
-    except Exception as e:
-        logger.error(f"Error initializing Redis connection: {e}")
-        raise
+    """Initialize Redis connection with retry logic"""
+    for attempt in range(CACHE_SETTINGS['REDIS_RETRY_COUNT']):
+        try:
+            # Create Redis connection with timeout settings
+            redis_client = redis.Redis.from_url(
+                redis_url,
+                decode_responses=True,  # Automatically decode responses to strings
+                socket_timeout=CACHE_SETTINGS['REDIS_TIMEOUT'],
+                socket_connect_timeout=CACHE_SETTINGS['REDIS_TIMEOUT'],
+                retry_on_timeout=True,
+                health_check_interval=30
+            )
+            
+            # Test the connection
+            await redis_client.ping()
+            
+            logger.info("Redis connection initialized successfully")
+            return redis_client
+            
+        except redis.TimeoutError:
+            logger.warning(f"Redis connection timeout (attempt {attempt + 1}/{CACHE_SETTINGS['REDIS_RETRY_COUNT']})")
+            if attempt < CACHE_SETTINGS['REDIS_RETRY_COUNT'] - 1:
+                await asyncio.sleep(CACHE_SETTINGS['REDIS_RETRY_DELAY'])
+        except redis.ConnectionError as e:
+            logger.error(f"Redis connection error (attempt {attempt + 1}): {e}")
+            if attempt < CACHE_SETTINGS['REDIS_RETRY_COUNT'] - 1:
+                await asyncio.sleep(CACHE_SETTINGS['REDIS_RETRY_DELAY'])
+        except Exception as e:
+            logger.error(f"Unexpected Redis error: {e}")
+            raise
+    
+    raise Exception("Failed to establish Redis connection after retries")
 
 def create_sqlalchemy_engine(database_url: str):
     """Create SQLAlchemy async engine"""

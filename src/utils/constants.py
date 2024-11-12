@@ -1,5 +1,5 @@
 # Version info
-APP_VERSION = "2.1.3"
+APP_VERSION = "2.1.4"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
@@ -143,7 +143,10 @@ CACHE_SETTINGS = {
     'SCRAPE_TTL': 3600,          # 1 hour
     'MEMBER_DATA_TTL': 3600,      # 1 hour
     'ORG_DATA_TTL': 7200,         # 2 hours
-    'VERIFICATION_TTL': 86400     # 24 hours
+    'VERIFICATION_TTL': 86400,    # 24 hours
+    'REDIS_TIMEOUT': 5,          # Redis operation timeout in seconds
+    'REDIS_RETRY_COUNT': 3,      # Number of retries for Redis operations
+    'REDIS_RETRY_DELAY': 1       # Delay between retries in seconds
 }
 
 # Database Settings
