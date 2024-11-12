@@ -12,6 +12,32 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 LOG_DIR = ROOT_DIR / 'logs'
 DATA_DIR = ROOT_DIR / 'data'
 
+# RSI Configuration
+RSI_CONFIG = {
+    'STATUS_URL': 'https://status.robertsspaceindustries.com/api/v2/status',
+    'INCIDENTS_URL': 'https://status.robertsspaceindustries.com/api/v2/incidents/unresolved',
+    'SERVICES': {
+        'RSI Platform': 'rsi-platform',
+        'Star Citizen (PU)': 'star-citizen',
+        'Arena Commander': 'arena-commander'
+    },
+    'STATUS_CODES': {
+        'operational': 'operational',
+        'partial_outage': 'partial_outage',
+        'major_outage': 'major_outage',
+        'maintenance': 'maintenance',
+        'investigating': 'investigating'
+    },
+    'UPDATE_INTERVAL': 60,  # seconds
+    'TIMEOUT': 10,  # seconds
+    'RETRY_ATTEMPTS': 3,
+    'RETRY_DELAY': 5,  # seconds
+    'HEADERS': {
+        'User-Agent': 'DraXon OCULUS Bot',
+        'Accept': 'application/json'
+    }
+}
+
 # Database settings
 DB_SETTINGS = {
     'MIN_CONNECTIONS': 5,
