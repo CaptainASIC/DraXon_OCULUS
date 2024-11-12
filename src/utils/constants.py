@@ -20,9 +20,16 @@ DB_SETTINGS = {
     'TIMEOUT': 30,  # seconds
     'COMMAND_TIMEOUT': 30,  # seconds
     'POOL_RECYCLE': 300,  # 5 minutes
-    'POOL_SIZE': 10,  # Added missing pool size
-    'MIN_SIZE': 5,   # Added minimum pool size
-    'MAX_SIZE': 20   # Added maximum pool size
+    'POOL_SIZE': 10,
+    'MIN_SIZE': 5,
+    'MAX_SIZE': 20,
+    'MAX_OVERFLOW': 10,
+    'POOL_TIMEOUT': 30,
+    'ECHO': False,
+    'ECHO_POOL': False,
+    'POOL_PRE_PING': True,
+    'POOL_USE_LIFO': True,
+    'POOL_RESET_ON_RETURN': True
 }
 
 # Bot required permissions
