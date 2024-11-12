@@ -32,6 +32,29 @@ DB_SETTINGS = {
     'POOL_RESET_ON_RETURN': True
 }
 
+# Cache settings
+CACHE_SETTINGS = {
+    'STATUS_TTL': 300,  # 5 minutes
+    'INCIDENT_TTL': 3600,  # 1 hour
+    'MEMBER_TTL': 3600,  # 1 hour
+    'RETRY_ATTEMPTS': 3,
+    'RETRY_DELAY': 1,  # seconds
+    'POOL_SIZE': 10,
+    'POOL_TIMEOUT': 30,  # seconds
+    'REDIS_RETRY_COUNT': 3,
+    'REDIS_RETRY_DELAY': 1,  # seconds
+    'REDIS_SOCKET_TIMEOUT': 5,  # seconds
+    'REDIS_SOCKET_CONNECT_TIMEOUT': 5,  # seconds
+    'REDIS_SOCKET_KEEPALIVE': True,
+    'REDIS_HEALTH_CHECK_INTERVAL': 30,  # seconds
+    'REDIS_MAX_CONNECTIONS': 10,
+    'REDIS_MAX_IDLE_TIME': 300,  # 5 minutes
+    'REDIS_ENCODING': 'utf-8',
+    'REDIS_DECODE_RESPONSES': True,
+    'REDIS_RETRY_ON_TIMEOUT': True,
+    'REDIS_RETRY_ON_ERROR': True
+}
+
 # Bot required permissions
 BOT_REQUIRED_PERMISSIONS = [
     'manage_channels',
@@ -75,17 +98,6 @@ CHANNEL_PERMISSIONS = {
             'manage_channels': True
         }
     }
-}
-
-# Cache settings
-CACHE_SETTINGS = {
-    'STATUS_TTL': 300,  # 5 minutes
-    'INCIDENT_TTL': 3600,  # 1 hour
-    'MEMBER_TTL': 3600,  # 1 hour
-    'RETRY_ATTEMPTS': 3,
-    'RETRY_DELAY': 1,  # seconds
-    'POOL_SIZE': 10,
-    'POOL_TIMEOUT': 30  # seconds
 }
 
 # Status emojis
