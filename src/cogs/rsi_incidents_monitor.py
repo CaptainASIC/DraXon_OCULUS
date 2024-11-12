@@ -1,3 +1,5 @@
+"""Monitor and report RSI service incidents"""
+
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
@@ -13,6 +15,7 @@ from typing import Optional, Dict, Any, List
 from bs4 import BeautifulSoup
 import json
 import aiohttp
+import requests
 
 from src.utils.constants import (
     RSI_CONFIG,
@@ -31,6 +34,14 @@ class RSIIncidentMonitorCog(commands.Cog):
         self.check_incidents_task.start()
         logger.info("RSI Incident Monitor initialized")
         asyncio.create_task(self.setup_database())
+        # Headers for feed requests
+        self.headers = {
+            'Accept': 'application/rss+xml,application/xml;q=0.9',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'User-Agent': RSI_CONFIG['USER_AGENT']
+        }
 
     async def setup_database(self):
         """Setup required database tables"""
@@ -84,30 +95,37 @@ class RSIIncidentMonitorCog(commands.Cog):
 
     async def make_request(self) -> Optional[str]:
         """Make HTTP request with retries and error handling"""
-        if not hasattr(self.bot, 'session') or not self.bot.session:
-            logger.error("HTTP session not initialized")
-            return None
-
-        for attempt in range(3):  # 3 retries
-            try:
-                async with self.bot.session.get(
-                    RSI_CONFIG['FEED_URL'],
-                    timeout=30
-                ) as response:
-                    if response.status == 200:
-                        return await response.text()
-                    logger.warning(f"Feed request failed with status {response.status}")
-            except asyncio.TimeoutError:
-                logger.warning(f"Feed request timeout on attempt {attempt + 1}")
-            except aiohttp.ClientError as e:
-                logger.error(f"HTTP client error: {str(e)}")
-            except Exception as e:
-                logger.error(f"Unexpected error making request: {str(e)}")
+        try:
+            # Use requests library directly like the working API
+            for attempt in range(3):  # 3 retries
+                try:
+                    response = requests.get(
+                        RSI_CONFIG['FEED_URL'],
+                        headers=self.headers,
+                        timeout=5,  # Match the working API's timeout
+                        verify=True
+                    )
+                    
+                    if response.status_code == 200:
+                        return response.text
+                        
+                    logger.warning(f"Feed request failed with status {response.status_code}")
+                    
+                except requests.Timeout:
+                    logger.warning(f"Feed request timeout on attempt {attempt + 1}")
+                except requests.RequestException as e:
+                    logger.error(f"HTTP request error: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Unexpected error making request: {str(e)}")
+                
+                if attempt < 2:  # Don't sleep on last attempt
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
             
-            if attempt < 2:  # Don't sleep on last attempt
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
-        
-        return None
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error in make_request: {str(e)}")
+            return None
 
     def clean_html_content(self, html_content: str) -> str:
         """Clean and format HTML content for Discord"""
@@ -216,8 +234,18 @@ class RSIIncidentMonitorCog(commands.Cog):
             if not content:
                 return None
 
-            feed = feedparser.parse(content)
+            # Parse feed with error handling
+            try:
+                feed = feedparser.parse(content)
+                if feed.bozo:  # Feed parsing error
+                    logger.error(f"Feed parsing error: {feed.bozo_exception}")
+                    return None
+            except Exception as e:
+                logger.error(f"Error parsing feed: {e}")
+                return None
+
             if not feed.entries:
+                logger.info("No entries found in feed")
                 return None
 
             # Process latest entry
