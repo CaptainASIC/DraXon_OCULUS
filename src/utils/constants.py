@@ -104,6 +104,33 @@ CHANNEL_PERMISSIONS = {
     }
 }
 
+# Role settings
+ROLE_SETTINGS = {
+    'PROMOTION_COOLDOWN': 604800,  # 7 days in seconds
+    'DEMOTION_COOLDOWN': 604800,   # 7 days in seconds
+    'MIN_VOTES_REQUIRED': {
+        'PROMOTION': 2,
+        'DEMOTION': 3
+    },
+    'VOTE_TIMEOUT': 86400,  # 24 hours in seconds
+    'ROLE_COLORS': {
+        'Magnate': 0xFF0000,       # Red
+        'Chairman': 0xFFA500,      # Orange
+        'Executive': 0xFFFF00,     # Yellow
+        'Team Leader': 0x00FF00,   # Green
+        'Employee': 0x0000FF,      # Blue
+        'Applicant': 0x808080      # Gray
+    },
+    'ROLE_PERMISSIONS': {
+        'Magnate': ['administrator'],
+        'Chairman': ['manage_guild', 'manage_roles', 'manage_channels'],
+        'Executive': ['manage_messages', 'mention_everyone'],
+        'Team Leader': ['manage_messages'],
+        'Employee': ['send_messages', 'read_messages'],
+        'Applicant': ['read_messages']
+    }
+}
+
 # Status emojis
 STATUS_EMOJIS = {
     'operational': '✅',
