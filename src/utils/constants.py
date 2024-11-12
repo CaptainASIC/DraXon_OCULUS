@@ -9,8 +9,8 @@ BOT_DESCRIPTION = "DraXon Organizational Command & Unified Leadership Implementa
 
 # Directory paths
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-LOG_DIR = os.path.join(ROOT_DIR, 'logs')
-DATA_DIR = os.path.join(ROOT_DIR, 'data')
+LOG_DIR = ROOT_DIR / 'logs'
+DATA_DIR = ROOT_DIR / 'data'
 
 # Database settings
 DB_SETTINGS = {
