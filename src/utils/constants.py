@@ -19,7 +19,10 @@ DB_SETTINGS = {
     'MAX_QUERIES': 50000,
     'TIMEOUT': 30,  # seconds
     'COMMAND_TIMEOUT': 30,  # seconds
-    'POOL_RECYCLE': 300  # 5 minutes
+    'POOL_RECYCLE': 300,  # 5 minutes
+    'POOL_SIZE': 10,  # Added missing pool size
+    'MIN_SIZE': 5,   # Added minimum pool size
+    'MAX_SIZE': 20   # Added maximum pool size
 }
 
 # Bot required permissions
