@@ -1,7 +1,16 @@
 """Constants for DraXon OCULUS"""
 
+import os
+from pathlib import Path
+
+# Version and description
 APP_VERSION = "3.0.0"
 BOT_DESCRIPTION = "DraXon Organizational Command & Unified Leadership Implementation System"
+
+# Directory paths
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+LOG_DIR = os.path.join(ROOT_DIR, 'logs')
+DATA_DIR = os.path.join(ROOT_DIR, 'data')
 
 # Bot required permissions
 BOT_REQUIRED_PERMISSIONS = [
