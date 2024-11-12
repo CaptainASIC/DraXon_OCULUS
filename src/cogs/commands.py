@@ -6,7 +6,7 @@ from discord.ext import commands
 import logging
 from datetime import datetime
 
-from ..utils.constants import APP_VERSION, BUILD_DATE, BOT_DESCRIPTION
+from ..utils.constants import APP_VERSION, BUILD_DATE, BOT_DESCRIPTION, CHANNELS_CONFIG
 
 logger = logging.getLogger('DraXon_OCULUS')
 
@@ -55,7 +55,9 @@ class CommandsCog(commands.Cog):
                     "🔄 `/draxon-compare`\n"
                     "Compare Discord and RSI members\n\n"
                     "🔄 `/draxon-refresh`\n"
-                    "Refresh RSI organization data"
+                    "Refresh RSI organization data\n\n"
+                    "⚙️ `/draxon-setup`\n"
+                    "Setup or update bot channels"
                 )
                 embed.add_field(
                     name="Management Commands",
@@ -72,6 +74,63 @@ class CommandsCog(commands.Cog):
             logger.error(f"Error in help command: {e}")
             await interaction.response.send_message(
                 "❌ An error occurred while fetching command information.",
+                ephemeral=True
+            )
+
+    @app_commands.command(
+        name="draxon-setup",
+        description="Setup or update DraXon OCULUS channels"
+    )
+    @app_commands.checks.has_role("Magnate")
+    async def setup(self, interaction: discord.Interaction):
+        """Setup or update bot channels"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # Get channels cog
+            channels_cog = self.bot.get_cog('ChannelsCog')
+            if not channels_cog:
+                await interaction.followup.send(
+                    "❌ Channel management system not available.",
+                    ephemeral=True
+                )
+                return
+            
+            # Setup channels
+            await channels_cog.setup_guild(interaction.guild)
+            
+            # Create response embed
+            embed = discord.Embed(
+                title="✅ DraXon OCULUS Setup Complete",
+                description="The following channels have been created/updated:",
+                color=discord.Color.green(),
+                timestamp=datetime.utcnow()
+            )
+            
+            # List created channels
+            channels_list = "\n".join(
+                f"• {config['display'].format(count='0', emoji='✅')}"
+                for config in CHANNELS_CONFIG
+            )
+            embed.add_field(
+                name="Channels",
+                value=channels_list,
+                inline=False
+            )
+            
+            # Add note about updates
+            embed.add_field(
+                name="Note",
+                value="Channel names and counts will update automatically.",
+                inline=False
+            )
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            logger.error(f"Error in setup command: {e}")
+            await interaction.followup.send(
+                "❌ An error occurred during setup.",
                 ephemeral=True
             )
 
