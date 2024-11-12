@@ -1,186 +1,210 @@
 """Constants for DraXon OCULUS"""
 
-import os
-from pathlib import Path
-
-# Version and description
+# Version info
 APP_VERSION = "3.0.0"
-BOT_DESCRIPTION = "DraXon Organizational Command & Unified Leadership Implementation System"
+BUILD_DATE = "Nov 2024"
 
-# Directory paths
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-LOG_DIR = ROOT_DIR / 'logs'
-DATA_DIR = ROOT_DIR / 'data'
+# Bot Description - Simple format like PULSE
+BOT_DESCRIPTION = "Organizational Command & Unified Leadership Implementation System"
 
-# RSI Configuration
-RSI_CONFIG = {
-    'STATUS_URL': 'https://status.robertsspaceindustries.com/api/v2/status',
-    'INCIDENTS_URL': 'https://status.robertsspaceindustries.com/api/v2/incidents/unresolved',
-    'SERVICES': {
-        'RSI Platform': 'rsi-platform',
-        'Star Citizen (PU)': 'star-citizen',
-        'Arena Commander': 'arena-commander'
-    },
-    'STATUS_CODES': {
-        'operational': 'operational',
-        'partial_outage': 'partial_outage',
-        'major_outage': 'major_outage',
-        'maintenance': 'maintenance',
-        'investigating': 'investigating'
-    },
-    'UPDATE_INTERVAL': 60,  # seconds
-    'TIMEOUT': 10,  # seconds
-    'RETRY_ATTEMPTS': 3,
-    'RETRY_DELAY': 5,  # seconds
-    'HEADERS': {
-        'User-Agent': 'DraXon OCULUS Bot',
-        'Accept': 'application/json'
+# Role Configuration
+ROLE_HIERARCHY = [
+    'Screening',
+    'Applicant',
+    'Employee',
+    'Team Leader',
+    'Executive',
+    'Chairman',
+    'Magnate'
+]
+
+DraXon_ROLES = {
+    'leadership': ['Magnate', 'Chairman'],
+    'management': ['Executive', 'Team Leader'],
+    'staff': ['Employee'],
+    'restricted': ['Applicant', 'Screening']
+}
+
+# Role Management Settings
+ROLE_SETTINGS = {
+    'LEADERSHIP_MAX_RANK': "Team Leader",    # Maximum rank for affiliates
+    'DEFAULT_DEMOTION_RANK': "Employee",     # Rank to demote affiliates to
+    'UNAFFILIATED_RANK': "Screening",        # Rank for members not in org
+    'MAX_PROMOTION_OPTIONS': 2,              # Maximum number of ranks to show for promotion
+    'PROMOTION_TIMEOUT': 180                 # Seconds before promotion view times out
+}
+
+# Import these at top level for backwards compatibility
+LEADERSHIP_MAX_RANK = ROLE_SETTINGS['LEADERSHIP_MAX_RANK']
+DEFAULT_DEMOTION_RANK = ROLE_SETTINGS['DEFAULT_DEMOTION_RANK']
+UNAFFILIATED_RANK = ROLE_SETTINGS['UNAFFILIATED_RANK']
+MAX_PROMOTION_OPTIONS = ROLE_SETTINGS['MAX_PROMOTION_OPTIONS']
+PROMOTION_TIMEOUT = ROLE_SETTINGS['PROMOTION_TIMEOUT']
+
+# Message Templates
+SYSTEM_MESSAGES = {
+    'MAINTENANCE': """
+⚠️ **RSI Website is Currently Unavailable**
+
+The RSI website is experiencing downtime. This is a known issue that occurs daily 
+from {start_time} UTC for approximately {duration} hours.
+
+Please try again later when the service has been restored.
+""",
+    
+    'UNLINKED_REMINDER': """
+👋 Hello! This is a friendly reminder to link your RSI account with our Discord server.
+
+You can do this by using the `/draxon-link` command in any channel.
+
+Linking your account helps us maintain proper organization structure and ensures 
+you have access to all appropriate channels and features.
+""",
+    
+    'DEMOTION_REASONS': {
+        'affiliate': "Affiliate status incompatible with leadership role",
+        'not_in_org': "Not found in organization",
+        'role_update': "Role updated due to organization status change"
     }
 }
 
-# Database settings
+# Channel Configuration
+CHANNELS_CONFIG = [
+    {
+        "name": "all-staff",
+        "display": "👥 All Staff: {count}",
+        "count_type": "members"
+    },
+    {
+        "name": "automated-systems",
+        "display": "🤖 Automated Systems: {count}",
+        "count_type": "bots"
+    },
+    {
+        "name": "platform-status",
+        "display": "{emoji} RSI Platform",
+        "count_type": "status"
+    },
+    {
+        "name": "persistent-universe-status",
+        "display": "{emoji} Star Citizen (PU)",
+        "count_type": "status"
+    },
+    {
+        "name": "electronic-access-status",
+        "display": "{emoji} Arena Commander",
+        "count_type": "status"
+    }
+]
+
+# Channel Settings
+CHANNEL_SETTINGS = {
+    'CATEGORY_NAME': 'DraXon OCULUS',  # Name of the category for bot channels
+    'REFRESH_INTERVAL': 300,       # Channel refresh interval in seconds (5 minutes)
+    'MAX_RETRIES': 3,             # Maximum retries for channel operations
+    'RETRY_DELAY': 5,             # Delay between retries in seconds
+    'VOICE_BITRATE': 64000,       # Default bitrate for voice channels
+    'USER_LIMIT': 0,              # Default user limit (0 = unlimited)
+    'POSITION_START': 1,          # Starting position for channels in category
+    'POSITION_INCREMENT': 1,      # Position increment for each channel
+    'SYNC_PERMISSIONS': True,     # Whether to sync permissions with category
+    'CLEANUP_OLD_CHANNELS': True  # Whether to clean up old/duplicate channels
+}
+
+# Status Configuration
+STATUS_EMOJIS = {
+    'operational': '✅',
+    'degraded': '⚠️',
+    'partial': '⚠️',
+    'major': '❌',
+    'maintenance': '🔧',
+    'unknown': '❓'
+}
+
+COMPARE_STATUS = {
+    'match': '✅',      # Member found in both Discord and RSI
+    'mismatch': '❌',   # Different data between Discord and RSI
+    'missing': '⚠️'     # Missing from either Discord or RSI
+}
+
+# RSI Configuration
+RSI_CONFIG = {
+    'ORGANIZATION_SID': "DRAXON",
+    'MEMBERS_PER_PAGE': 32,
+    'STATUS_URL': "https://status.robertsspaceindustries.com/",
+    'FEED_URL': "https://status.robertsspaceindustries.com/index.xml",
+    'MAINTENANCE_START': "22:00",  # UTC
+    'MAINTENANCE_DURATION': 3,     # Hours
+    'BASE_URL': "https://robertsspaceindustries.com",
+    'USER_AGENT': f"DraXon_OCULUS/{APP_VERSION}"
+}
+
+# Cache Settings
+CACHE_SETTINGS = {
+    'STATUS_TTL': 300,            # 5 minutes
+    'SCRAPE_TTL': 3600,          # 1 hour
+    'MEMBER_DATA_TTL': 3600,      # 1 hour
+    'ORG_DATA_TTL': 7200,         # 2 hours
+    'VERIFICATION_TTL': 86400,    # 24 hours
+    'REDIS_TIMEOUT': 5,          # Redis operation timeout in seconds
+    'REDIS_RETRY_COUNT': 3,      # Number of retries for Redis operations
+    'REDIS_RETRY_DELAY': 1       # Delay between retries in seconds
+}
+
+# Database Settings
 DB_SETTINGS = {
-    'MIN_CONNECTIONS': 5,
-    'MAX_CONNECTIONS': 20,
-    'MAX_QUERIES': 50000,
-    'TIMEOUT': 30,  # seconds
-    'COMMAND_TIMEOUT': 30,  # seconds
-    'POOL_RECYCLE': 300,  # 5 minutes
-    'POOL_SIZE': 10,
-    'MIN_SIZE': 5,
-    'MAX_SIZE': 20,
+    'POOL_SIZE': 20,
     'MAX_OVERFLOW': 10,
     'POOL_TIMEOUT': 30,
-    'ECHO': False,
-    'ECHO_POOL': False,
-    'POOL_PRE_PING': True,
-    'POOL_USE_LIFO': True,
-    'POOL_RESET_ON_RETURN': True
+    'POOL_RECYCLE': 1800,
+    'ECHO': False
 }
 
-# Cache settings
-CACHE_SETTINGS = {
-    'STATUS_TTL': 300,  # 5 minutes
-    'INCIDENT_TTL': 3600,  # 1 hour
-    'MEMBER_TTL': 3600,  # 1 hour
-    'RETRY_ATTEMPTS': 3,
-    'RETRY_DELAY': 1,  # seconds
-    'POOL_SIZE': 10,
-    'POOL_TIMEOUT': 30,  # seconds
-    'REDIS_RETRY_COUNT': 3,
-    'REDIS_RETRY_DELAY': 1,  # seconds
-    'REDIS_SOCKET_TIMEOUT': 5,  # seconds
-    'REDIS_SOCKET_CONNECT_TIMEOUT': 5,  # seconds
-    'REDIS_SOCKET_KEEPALIVE': True,
-    'REDIS_HEALTH_CHECK_INTERVAL': 30,  # seconds
-    'REDIS_MAX_CONNECTIONS': 10,
-    'REDIS_MAX_IDLE_TIME': 300,  # 5 minutes
-    'REDIS_ENCODING': 'utf-8',
-    'REDIS_DECODE_RESPONSES': True,
-    'REDIS_RETRY_ON_TIMEOUT': True,
-    'REDIS_RETRY_ON_ERROR': True,
-    'REDIS_TIMEOUT': 5,  # seconds
-    'REDIS_CONNECT_TIMEOUT': 5,  # seconds
-    'REDIS_BUSY_WAIT_TIMEOUT': 5,  # seconds
-    'REDIS_IDLE_CHECK_INTERVAL': 60  # seconds
-}
-
-# Bot required permissions
-BOT_REQUIRED_PERMISSIONS = [
-    'manage_channels',
-    'manage_roles',
-    'read_messages',
-    'send_messages',
-    'manage_messages',
-    'embed_links',
-    'read_message_history',
-    'add_reactions'
-]
-
-# Channel settings
-CHANNEL_SETTINGS = {
-    'CATEGORY_NAME': 'DraXon OCULUS',
-    'UPDATE_INTERVAL': 60,  # seconds
-    'INCIDENT_CHECK_INTERVAL': 60  # seconds
-}
-
-# Channel configurations
-CHANNELS_CONFIG = [
-    {'name': '👥 All Staff: 0', 'type': 'count'},
-    {'name': '🤖 Automated Systems: 0', 'type': 'count'},
-    {'name': '✅ RSI Platform', 'type': 'status'},
-    {'name': '✅ Star Citizen (PU)', 'type': 'status'},
-    {'name': '✅ Arena Commander', 'type': 'status'}
-]
-
-# Channel permissions
+# Channel Permissions
 CHANNEL_PERMISSIONS = {
     'display_only': {
         'everyone': {
             'view_channel': True,
             'connect': False,
-            'speak': False
+            'speak': False,
+            'send_messages': False,
+            'stream': False,
+            'use_voice_activation': False
         },
         'bot': {
             'view_channel': True,
+            'manage_channels': True,
+            'manage_permissions': True,
             'connect': True,
-            'speak': True,
-            'manage_channels': True
+            'manage_roles': True,
+            'manage_messages': True,
+            'attach_files': True,
+            'send_messages_in_threads': True
         }
     }
 }
 
-# Role settings
-ROLE_SETTINGS = {
-    'PROMOTION_COOLDOWN': 604800,  # 7 days in seconds
-    'DEMOTION_COOLDOWN': 604800,   # 7 days in seconds
-    'MIN_VOTES_REQUIRED': {
-        'PROMOTION': 2,
-        'DEMOTION': 3
-    },
-    'VOTE_TIMEOUT': 86400,  # 24 hours in seconds
-    'ROLE_COLORS': {
-        'Magnate': 0xFF0000,       # Red
-        'Chairman': 0xFFA500,      # Orange
-        'Executive': 0xFFFF00,     # Yellow
-        'Team Leader': 0x00FF00,   # Green
-        'Employee': 0x0000FF,      # Blue
-        'Applicant': 0x808080      # Gray
-    },
-    'ROLE_PERMISSIONS': {
-        'Magnate': ['administrator'],
-        'Chairman': ['manage_guild', 'manage_roles', 'manage_channels'],
-        'Executive': ['manage_messages', 'mention_everyone'],
-        'Team Leader': ['manage_messages'],
-        'Employee': ['send_messages', 'read_messages'],
-        'Applicant': ['read_messages']
-    }
-}
+# Bot Configuration
+BOT_REQUIRED_PERMISSIONS = [
+    'view_channel',
+    'manage_channels',
+    'manage_roles',
+    'send_messages',
+    'read_message_history',
+    'create_private_threads',
+    'read_messages',
+    'move_members',
+    'manage_messages',
+    'attach_files',
+    'send_messages_in_threads'
+]
 
-# Status emojis
-STATUS_EMOJIS = {
-    'operational': '✅',
-    'partial_outage': '⚠️',
-    'major_outage': '❌',
-    'maintenance': '🔧',
-    'investigating': '🔍'
-}
-
-# Role hierarchy
-ROLE_HIERARCHY = {
-    'leadership': ['Magnate', 'Chairman', 'Executive'],
-    'management': ['Team Leader'],
-    'staff': ['Employee'],
-    'applicants': ['Applicant']
-}
-
-# DraXon roles
-DraXon_ROLES = {
-    'leadership': ['Magnate', 'Chairman', 'Executive'],
-    'management': ['Team Leader'],
-    'staff': ['Employee'],
-    'applicants': ['Applicant']
-}
+# Path Configuration
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+LOG_DIR = BASE_DIR / "logs"
+ENV_DIR = BASE_DIR / "env"
+DB_DIR = BASE_DIR / "data"
 
 # V3 Additions Below
 # These are new configurations that don't affect existing functionality
@@ -214,8 +238,8 @@ APPLICATION_SETTINGS = {
     }
 }
 
-# System messages
-SYSTEM_MESSAGES = {
+# V3 System messages
+V3_SYSTEM_MESSAGES = {
     'APPLICATION': {
         'THREAD_CREATED': """
 📋 Application for {position}
