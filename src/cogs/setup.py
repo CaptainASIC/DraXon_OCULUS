@@ -26,7 +26,26 @@ class SetupCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
+        self._column_types = {}
         logger.info("Setup cog initialized")
+
+    async def _get_column_type(self, table: str, column: str) -> str:
+        """Get the type of a column from information_schema"""
+        if f"{table}.{column}" not in self._column_types:
+            query = """
+            SELECT data_type 
+            FROM information_schema.columns 
+            WHERE table_name = $1 
+            AND column_name = $2
+            """
+            result = await self.bot.db.fetchval(query, table, column)
+            self._column_types[f"{table}.{column}"] = result or 'text'
+        return self._column_types[f"{table}.{column}"]
+
+    async def _insert_id(self, table: str, column: str, value: str):
+        """Insert ID based on column type"""
+        col_type = await self._get_column_type(table, column)
+        return int(value) if col_type == 'bigint' else value
 
     @app_commands.command(name="oculus-setup")
     @app_commands.describe(
@@ -79,12 +98,7 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, 
-                (CASE 
-                    WHEN pg_typeof(actor_id) = 'bigint'::regtype THEN $2::bigint
-                    ELSE $2::text
-                END),
-                $3)
+            ) VALUES ($1, $2, $3)
             """
             details = json.dumps({
                 'channels': channels,
@@ -92,10 +106,11 @@ class SetupCog(commands.Cog):
                 'sync': sync,
                 'status': 'success'
             })
+            actor_id = await self._insert_id('v3_audit_logs', 'actor_id', str(interaction.user.id))
             await self.bot.db.execute(
                 audit_query,
                 'SYSTEM_SETUP',
-                str(interaction.user.id),
+                actor_id,
                 details
             )
 
@@ -114,21 +129,17 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, 
-                (CASE 
-                    WHEN pg_typeof(actor_id) = 'bigint'::regtype THEN $2::bigint
-                    ELSE $2::text
-                END),
-                $3)
+            ) VALUES ($1, $2, $3)
             """
             details = json.dumps({
                 'status': 'error',
                 'error': str(e)
             })
+            actor_id = await self._insert_id('v3_audit_logs', 'actor_id', str(interaction.user.id))
             await self.bot.db.execute(
                 audit_query,
                 'SYSTEM_SETUP',
-                str(interaction.user.id),
+                actor_id,
                 details
             )
 
@@ -154,13 +165,11 @@ class SetupCog(commands.Cog):
             # Update division with role ID
             update_query = """
             UPDATE v3_divisions 
-            SET role_id = (CASE 
-                WHEN pg_typeof(role_id) = 'bigint'::regtype THEN $1::bigint
-                ELSE $1::text
-            END)
+            SET role_id = $1 
             WHERE name = $2
             """
-            await self.bot.db.execute(update_query, str(role.id), name)
+            role_id = await self._insert_id('v3_divisions', 'role_id', str(role.id))
+            await self.bot.db.execute(update_query, role_id, name)
 
     async def _sync_members(self, guild: discord.Guild):
         """Sync existing members"""
@@ -171,34 +180,21 @@ class SetupCog(commands.Cog):
             # Check if member exists
             member_query = """
             SELECT * FROM v3_members 
-            WHERE discord_id = (CASE 
-                WHEN pg_typeof(discord_id) = 'bigint'::regtype THEN $1::bigint
-                ELSE $1::text
-            END)
+            WHERE discord_id = $1
             """
-            member = await self.bot.db.fetchrow(member_query, str(guild_member.id))
+            discord_id = await self._insert_id('v3_members', 'discord_id', str(guild_member.id))
+            member = await self.bot.db.fetchrow(member_query, discord_id)
 
             if not member:
                 # Create new member without setting rank
                 insert_query = """
                 INSERT INTO v3_members (
                     discord_id, join_date
-                ) VALUES (
-                    (CASE 
-                        WHEN EXISTS (
-                            SELECT 1 FROM information_schema.columns 
-                            WHERE table_name = 'v3_members' 
-                            AND column_name = 'discord_id' 
-                            AND data_type = 'bigint'
-                        ) THEN $1::bigint
-                        ELSE $1::text
-                    END),
-                    $2
-                )
+                ) VALUES ($1, $2)
                 """
                 await self.bot.db.execute(
                     insert_query,
-                    str(guild_member.id),
+                    discord_id,
                     datetime.utcnow()
                 )
 
@@ -206,20 +202,16 @@ class SetupCog(commands.Cog):
                 audit_query = """
                 INSERT INTO v3_audit_logs (
                     action_type, actor_id, details
-                ) VALUES ($1, 
-                    (CASE 
-                        WHEN pg_typeof(actor_id) = 'bigint'::regtype THEN $2::bigint
-                        ELSE $2::text
-                    END),
-                    $3)
+                ) VALUES ($1, $2, $3)
                 """
                 details = json.dumps({
                     'member_id': str(guild_member.id)
                 })
+                actor_id = await self._insert_id('v3_audit_logs', 'actor_id', str(self.bot.user.id))
                 await self.bot.db.execute(
                     audit_query,
                     'MEMBER_CREATE',
-                    str(self.bot.user.id),
+                    actor_id,
                     details
                 )
 
