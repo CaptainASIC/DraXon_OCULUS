@@ -1,6 +1,4 @@
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+"""DraXon OCULUS Discord Bot Client"""
 
 import discord
 from discord import app_commands
@@ -14,12 +12,23 @@ from datetime import datetime
 import aiohttp
 import json
 import certifi
+from sqlalchemy import create_engine, MetaData, inspect
+from sqlalchemy.schema import CreateTable
 
 from src.utils.constants import (
     APP_VERSION,
     BOT_DESCRIPTION,
     BOT_REQUIRED_PERMISSIONS,
     CACHE_SETTINGS
+)
+from src.db.v3_models import (
+    DraXonDivision,
+    DraXonPosition,
+    DraXonMember,
+    DraXonApplication,
+    DraXonVote,
+    DraXonAuditLog,
+    Base
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -75,6 +84,10 @@ class DraXonOCULUSBot(commands.Bot):
         """Initial setup when bot starts"""
         logger.info("Setup hook starting...")
         try:
+            # Initialize v3 database schema
+            await self._init_v3_schema()
+            logger.info("V3 schema initialized")
+            
             # Initialize aiohttp session with basic settings
             connector = aiohttp.TCPConnector(
                 force_close=False,
@@ -103,10 +116,15 @@ class DraXonOCULUSBot(commands.Bot):
             # Define all cogs to load with dependencies
             cogs = [
                 # Core functionality
-                'src.cogs.channels',      # Channel management
+                'src.cogs.setup',         # System setup and configuration
                 'src.cogs.members',       # Member management
                 'src.cogs.promotion',     # Role management
                 'src.cogs.commands',      # Command handling
+                
+                # V3 Features
+                'src.cogs.applications',  # Application system
+                'src.cogs.positions',     # Position management
+                'src.cogs.divisions',     # Division management
                 
                 # RSI Integration
                 'src.cogs.rsi_status_monitor',    # RSI status tracking
@@ -139,6 +157,35 @@ class DraXonOCULUSBot(commands.Bot):
             
         except Exception as e:
             logger.error(f"Error in setup_hook: {e}")
+            raise
+
+    async def _init_v3_schema(self):
+        """Initialize v3 database schema"""
+        try:
+            # Create tables in correct order due to foreign key dependencies
+            tables = [
+                DraXonDivision.__table__,
+                DraXonMember.__table__,
+                DraXonPosition.__table__,
+                DraXonApplication.__table__,
+                DraXonVote.__table__,
+                DraXonAuditLog.__table__
+            ]
+            
+            # Create SQLAlchemy engine using the existing connection pool
+            engine = create_engine(self.settings.database_url)
+            inspector = inspect(engine)
+            
+            # Create each table if it doesn't exist
+            for table in tables:
+                if not inspector.has_table(table.name):
+                    Base.metadata.create_all(bind=engine, tables=[table])
+                    logger.info(f"Created table: {table.name}")
+                else:
+                    logger.info(f"Table already exists: {table.name}")
+
+        except Exception as e:
+            logger.error(f"Error initializing v3 schema: {e}")
             raise
 
     async def _load_channel_ids(self):
@@ -267,9 +314,9 @@ class DraXonOCULUSBot(commands.Bot):
             await self.redis.sadd('guilds', str(guild.id))
             
             # Initialize guild setup
-            channels_cog = self.get_cog('ChannelsCog')
-            if channels_cog:
-                await channels_cog.setup_guild(guild)
+            setup_cog = self.get_cog('SetupCog')
+            if setup_cog:
+                await setup_cog.setup_guild(guild)
                 
         except Exception as e:
             logger.error(f"Error handling guild join: {e}")
