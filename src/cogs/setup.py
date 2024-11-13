@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 from datetime import datetime
 import json
+import asyncpg
 
 from src.utils.constants import (
     APP_VERSION,
@@ -98,9 +99,16 @@ class SetupCog(commands.Cog):
                     content="✅ DraXon OCULUS setup completed successfully!"
                 )
 
+        except asyncpg.exceptions.DatatypeMismatchError:
+            error_msg = ("❌ Database schema needs to be updated. Please run the schema migrations "
+                        "before using this command.")
+            if not channels:
+                await progress_msg.edit(content=error_msg)
+            logger.error("Database schema mismatch - migrations needed")
+            return
         except Exception as e:
             error_msg = f"❌ Error during setup: {str(e)}"
-            if not channels:  # Only edit message if not doing channel setup
+            if not channels:
                 await progress_msg.edit(content=error_msg)
             logger.error(f"Setup error: {e}")
             
