@@ -14,6 +14,13 @@ async def init_v3_schema(settings):
         
         # Drop and recreate tables with correct types
         await conn.execute("""
+            BEGIN;
+            
+            -- Backup existing data
+            CREATE TEMP TABLE divisions_backup AS 
+            SELECT name, description FROM v3_divisions;
+            
+            -- Drop existing tables
             DROP TABLE IF EXISTS v3_audit_logs CASCADE;
             DROP TABLE IF EXISTS v3_votes CASCADE;
             DROP TABLE IF EXISTS v3_applications CASCADE;
@@ -21,6 +28,7 @@ async def init_v3_schema(settings):
             DROP TABLE IF EXISTS v3_members CASCADE;
             DROP TABLE IF EXISTS v3_divisions CASCADE;
 
+            -- Create tables with correct types
             CREATE TABLE v3_divisions (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(50) UNIQUE NOT NULL,
@@ -75,9 +83,17 @@ async def init_v3_schema(settings):
                 details JSONB,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+
+            -- Restore division data
+            INSERT INTO v3_divisions (name, description)
+            SELECT name, description FROM divisions_backup;
+
+            DROP TABLE divisions_backup;
+            
+            COMMIT;
         """)
         
-        # Insert default divisions
+        # Insert default divisions if they don't exist
         from src.utils.constants import DIVISIONS
         for name, description in DIVISIONS.items():
             await conn.execute(
