@@ -24,6 +24,8 @@ yarl>=1.9.2
 multidict>=6.0.4
 aiodns>=3.1.0
 aiofiles>=23.2.1
+feedparser>=6.0.10  # For RSS feed parsing
+aiohttp-xmlrpc>=1.5.0  # For XML-RPC support
 
 # Data Processing
 beautifulsoup4>=4.12.2
@@ -31,11 +33,13 @@ lxml>=4.9.3
 python-dateutil>=2.8.2
 pytz>=2023.3
 ujson>=5.8.0
+PyYAML>=6.0.1  # For YAML processing
 
 # Security and Auth
 cryptography>=41.0.0
 certifi>=2023.7.22
 PyJWT>=2.8.0
+PyNaCl>=1.5.0  # For voice support
 
 # Utilities
 colorlog>=6.8.0
@@ -43,6 +47,8 @@ humanize>=4.8.0
 python-slugify>=8.0.1
 tenacity>=8.2.3
 cachetools>=5.3.1
+tabulate>=0.9.0  # For table formatting
+tqdm>=4.66.1  # For progress bars
 
 # Development and Testing
 black>=23.7.0
@@ -60,3 +66,7 @@ types-python-dateutil>=2.8.19
 types-pytz>=2023.3.1
 types-beautifulsoup4>=4.12.0
 types-ujson>=5.8.0
+types-PyYAML>=6.0.12.12
+types-tabulate>=0.9.0.3
+types-tqdm>=4.66.0.2
+types-cryptography>=3.3.23.2
