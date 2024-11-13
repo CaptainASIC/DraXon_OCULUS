@@ -41,6 +41,27 @@ async def init_v3_schema(settings):
             else:
                 logger.info(f"Table already exists: {table.name}")
 
+        # Insert default divisions
+        from src.utils.constants import DIVISIONS
+        connection = engine.connect()
+        for name, description in DIVISIONS.items():
+            # Check if division exists
+            exists = connection.execute(
+                f"SELECT 1 FROM v3_divisions WHERE name = '{name}'"
+            ).fetchone()
+            
+            if not exists:
+                connection.execute(
+                    f"""
+                    INSERT INTO v3_divisions (name, description)
+                    VALUES ('{name}', '{description}')
+                    """
+                )
+                logger.info(f"Created division: {name}")
+        
+        connection.close()
+        logger.info("V3 schema initialization complete")
+
     except Exception as e:
         logger.error(f"Error initializing v3 schema: {e}")
         raise

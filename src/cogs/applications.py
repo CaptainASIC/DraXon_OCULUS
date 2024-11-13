@@ -11,7 +11,7 @@ from src.utils.constants import (
     RANK_CODES,
     DIVISIONS,
     APPLICATION_SETTINGS,
-    SYSTEM_MESSAGES
+    V3_SYSTEM_MESSAGES
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -126,7 +126,7 @@ class VotingView(discord.ui.View):
                     )
 
                     await interaction.channel.send(
-                        SYSTEM_MESSAGES['APPLICATION'][status].format(
+                        V3_SYSTEM_MESSAGES['APPLICATION'][status].format(
                             position=position['title']
                         )
                     )
@@ -293,7 +293,7 @@ class Applications(commands.Cog):
 
                         # Send initial thread message
                         await thread.send(
-                            SYSTEM_MESSAGES['APPLICATION']['THREAD_CREATED'].format(
+                            V3_SYSTEM_MESSAGES['APPLICATION']['THREAD_CREATED'].format(
                                 position=position['title'],
                                 applicant=interaction.user.mention,
                                 rank=member['rank'],

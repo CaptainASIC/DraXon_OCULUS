@@ -9,8 +9,7 @@ from datetime import datetime, timezone
 
 from src.utils.constants import (
     RANK_CODES,
-    DIVISIONS,
-    APPLICATION_SETTINGS
+    DIVISIONS
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
