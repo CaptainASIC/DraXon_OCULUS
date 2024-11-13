@@ -6,10 +6,12 @@ from discord.ext import commands
 import logging
 from typing import Optional, List
 from datetime import datetime, timezone
+import json
 
 from src.utils.constants import (
     RANK_CODES,
-    DIVISIONS
+    DIVISIONS,
+    DraXon_ROLES  # Added for role checking
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -38,14 +40,11 @@ class Positions(commands.Cog):
     ):
         """Manage DraXon positions"""
         
-        # Check permissions
-        member_query = """
-        SELECT * FROM v3_members 
-        WHERE discord_id = $1::BIGINT AND rank IN ('MG', 'CR', 'EXE')
-        """
-        member = await self.bot.db.fetchrow(member_query, interaction.user.id)
+        # Check permissions - allow Magnate role
+        user_roles = [role.name for role in interaction.user.roles]
+        is_authorized = any(role in DraXon_ROLES['leadership'] for role in user_roles)
         
-        if not member:
+        if not is_authorized:
             await interaction.response.send_message(
                 "❌ You don't have permission to manage positions.",
                 ephemeral=True
@@ -196,15 +195,16 @@ class Positions(commands.Cog):
         INSERT INTO v3_audit_logs (action_type, actor_id, details)
         VALUES ($1, $2::BIGINT, $3)
         """
+        details = json.dumps({
+            'position': name,
+            'division': division_name,
+            'rank_required': rank_required.upper()
+        })
         await self.bot.db.execute(
             audit_query,
             'POSITION_CREATE',
             interaction.user.id,
-            {
-                'position': name,
-                'division': division_name,
-                'rank_required': rank_required.upper()
-            }
+            details
         )
 
         await interaction.response.send_message(
@@ -253,14 +253,15 @@ class Positions(commands.Cog):
         INSERT INTO v3_audit_logs (action_type, actor_id, details)
         VALUES ($1, $2::BIGINT, $3)
         """
+        details = json.dumps({
+            'position': name,
+            'division': position['division_name']
+        })
         await self.bot.db.execute(
             audit_query,
             'POSITION_DELETE',
             interaction.user.id,
-            {
-                'position': name,
-                'division': position['division_name']
-            }
+            details
         )
 
         await interaction.response.send_message(
