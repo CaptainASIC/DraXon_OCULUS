@@ -19,6 +19,27 @@ logger = logging.getLogger('DraXon_OCULUS')
 async def init_v3_schema(settings):
     """Initialize v3 database schema"""
     try:
+        # Create SQLAlchemy engine using the existing connection pool
+        engine = create_engine(settings.database_url)
+        inspector = inspect(engine)
+        
+        # Drop existing tables in reverse order
+        tables = [
+            'v3_audit_logs',
+            'v3_votes',
+            'v3_applications',
+            'v3_positions',
+            'v3_members',
+            'v3_divisions'
+        ]
+        
+        with engine.connect() as connection:
+            for table in tables:
+                if inspector.has_table(table):
+                    connection.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+                    logger.info(f"Dropped table: {table}")
+            connection.commit()
+        
         # Create tables in correct order due to foreign key dependencies
         tables = [
             DraXonDivision.__table__,
@@ -29,38 +50,25 @@ async def init_v3_schema(settings):
             DraXonAuditLog.__table__
         ]
         
-        # Create SQLAlchemy engine using the existing connection pool
-        engine = create_engine(settings.database_url)
-        inspector = inspect(engine)
-        
-        # Create each table if it doesn't exist
+        # Create each table
         for table in tables:
-            if not inspector.has_table(table.name):
-                Base.metadata.create_all(bind=engine, tables=[table])
-                logger.info(f"Created table: {table.name}")
-            else:
-                logger.info(f"Table already exists: {table.name}")
+            Base.metadata.create_all(bind=engine, tables=[table])
+            logger.info(f"Created table: {table.name}")
 
         # Insert default divisions
         from src.utils.constants import DIVISIONS
         with engine.connect() as connection:
             for name, description in DIVISIONS.items():
-                # Check if division exists
-                result = connection.execute(
-                    text("SELECT 1 FROM v3_divisions WHERE name = :name"),
-                    {"name": name}
-                ).fetchone()
-                
-                if not result:
-                    connection.execute(
-                        text("""
-                        INSERT INTO v3_divisions (name, description)
-                        VALUES (:name, :description)
-                        """),
-                        {"name": name, "description": description}
-                    )
-                    connection.commit()
-                    logger.info(f"Created division: {name}")
+                connection.execute(
+                    text("""
+                    INSERT INTO v3_divisions (name, description)
+                    VALUES (:name, :description)
+                    ON CONFLICT (name) DO NOTHING
+                    """),
+                    {"name": name, "description": description}
+                )
+                connection.commit()
+                logger.info(f"Created division: {name}")
         
         logger.info("V3 schema initialization complete")
 
