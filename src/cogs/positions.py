@@ -20,8 +20,9 @@ logger = logging.getLogger('DraXon_OCULUS')
 class PositionModal(discord.ui.Modal, title="Create Position"):
     """Modal for creating a new position"""
     
-    def __init__(self):
+    def __init__(self, bot):
         super().__init__()
+        self.bot = bot
         
         self.title_input = discord.ui.TextInput(
             label="Position Title",
@@ -55,24 +56,76 @@ class PositionModal(discord.ui.Modal, title="Create Position"):
         self.add_item(self.required_rank)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Validate division
-        if self.division.value not in DIVISIONS:
+        try:
+            # Validate division
+            if self.division.value not in DIVISIONS:
+                await interaction.response.send_message(
+                    f"❌ Invalid division. Must be one of: {', '.join(DIVISIONS.keys())}",
+                    ephemeral=True
+                )
+                return
+                
+            # Validate rank
+            available_ranks = [r for r in ROLE_HIERARCHY if r not in DraXon_ROLES['leadership']]
+            if self.required_rank.value not in available_ranks:
+                await interaction.response.send_message(
+                    f"❌ Invalid rank. Must be one of: {', '.join(available_ranks)}",
+                    ephemeral=True
+                )
+                return
+                
+            # Get division ID
+            division_query = "SELECT id FROM v3_divisions WHERE name = $1"
+            division_id = await self.bot.db.fetchval(
+                division_query,
+                self.division.value
+            )
+            
+            # Create position
+            position_query = """
+            INSERT INTO v3_positions (
+                title, division_id, required_rank, status
+            ) VALUES ($1, $2, $3, $4)
+            RETURNING id
+            """
+            position_id = await self.bot.db.fetchval(
+                position_query,
+                self.title_input.value,
+                division_id,
+                self.required_rank.value[:3].upper(),  # Convert to code (e.g., EXE)
+                'OPEN'
+            )
+            
+            # Create audit log
+            audit_query = """
+            INSERT INTO v3_audit_logs (
+                action_type, actor_id, details
+            ) VALUES ($1, $2, $3)
+            """
+            details = json.dumps({
+                'position_id': position_id,
+                'title': self.title_input.value,
+                'division': self.division.value,
+                'required_rank': self.required_rank.value
+            })
+            await self.bot.db.execute(
+                audit_query,
+                'POSITION_CREATE',
+                str(interaction.user.id),
+                details
+            )
+            
             await interaction.response.send_message(
-                f"❌ Invalid division. Must be one of: {', '.join(DIVISIONS.keys())}",
+                f"✅ Position '{self.title_input.value}' created successfully.",
                 ephemeral=True
             )
-            return False
-            
-        # Validate rank
-        available_ranks = [r for r in ROLE_HIERARCHY if r not in DraXon_ROLES['leadership']]
-        if self.required_rank.value not in available_ranks:
+
+        except Exception as e:
+            logger.error(f"Error in position modal: {e}")
             await interaction.response.send_message(
-                f"❌ Invalid rank. Must be one of: {', '.join(available_ranks)}",
+                "❌ An error occurred while creating the position.",
                 ephemeral=True
             )
-            return False
-            
-        return True
 
 class Positions(commands.Cog):
     """DraXon Position Management"""
@@ -109,63 +162,8 @@ class Positions(commands.Cog):
             await self._list_positions(interaction)
         elif action.lower() == "add":
             # Show modal for adding position
-            modal = PositionModal()
+            modal = PositionModal(self.bot)
             await interaction.response.send_modal(modal)
-            
-            # Wait for modal submission
-            await modal.wait()
-            
-            if modal.is_submitted():
-                # Validate submission
-                if not await modal.on_submit(interaction):
-                    return
-                
-                # Get division ID
-                division_query = "SELECT id FROM v3_divisions WHERE name = $1"
-                division_id = await self.bot.db.fetchval(
-                    division_query,
-                    modal.division.value
-                )
-                
-                # Create position
-                position_query = """
-                INSERT INTO v3_positions (
-                    title, division_id, required_rank, status
-                ) VALUES ($1, $2, $3, $4)
-                RETURNING id
-                """
-                position_id = await self.bot.db.fetchval(
-                    position_query,
-                    modal.title_input.value,
-                    division_id,
-                    modal.required_rank.value[:3].upper(),  # Convert to code (e.g., EXE)
-                    'OPEN'
-                )
-                
-                # Create audit log
-                audit_query = """
-                INSERT INTO v3_audit_logs (
-                    action_type, actor_id, details
-                ) VALUES ($1, $2, $3)
-                """
-                details = json.dumps({
-                    'position_id': position_id,
-                    'title': modal.title_input.value,
-                    'division': modal.division.value,
-                    'required_rank': modal.required_rank.value
-                })
-                await self.bot.db.execute(
-                    audit_query,
-                    'POSITION_CREATE',
-                    str(interaction.user.id),
-                    details
-                )
-                
-                await interaction.followup.send(
-                    f"✅ Position '{modal.title_input.value}' created successfully.",
-                    ephemeral=True
-                )
-                
         elif action.lower() == "remove":
             if not name:
                 await interaction.response.send_message(

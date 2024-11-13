@@ -19,8 +19,9 @@ logger = logging.getLogger('DraXon_OCULUS')
 class ApplyModal(discord.ui.Modal, title="Apply for Position"):
     """Modal for applying to a position"""
     
-    def __init__(self, positions):
+    def __init__(self, bot, positions):
         super().__init__()
+        self.bot = bot
         self.positions = positions
         
         # Create dropdown-style input for position
@@ -46,19 +47,108 @@ class ApplyModal(discord.ui.Modal, title="Apply for Position"):
         self.add_item(self.statement)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Validate position
-        position_titles = [
-            f"{pos['title']} ({pos['division_name']})" 
-            for pos in self.positions
-        ]
-        if self.position.value not in position_titles:
+        try:
+            # Validate position
+            position_titles = [
+                f"{pos['title']} ({pos['division_name']})" 
+                for pos in self.positions
+            ]
+            if self.position.value not in position_titles:
+                await interaction.response.send_message(
+                    f"❌ Invalid position. Must be one of:\n{chr(10).join(position_titles)}",
+                    ephemeral=True
+                )
+                return
+                
+            # Get selected position
+            selected_position = next(
+                p for p in self.positions 
+                if f"{p['title']} ({p['division_name']})" == self.position.value
+            )
+            
+            # Create application
+            application_query = """
+            INSERT INTO v3_applications (
+                applicant_id, position_id, details, status, created_at
+            ) VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+            """
+            application_id = await self.bot.db.fetchval(
+                application_query,
+                str(interaction.user.id),
+                selected_position['id'],
+                self.statement.value,
+                'PENDING',
+                datetime.utcnow()
+            )
+
+            # Find HR channel for thread creation
+            hr_channel = discord.utils.get(
+                interaction.guild.channels,
+                name='human-resources'
+            )
+            
+            if not hr_channel:
+                await interaction.response.send_message(
+                    "❌ Error: HR channel not found.",
+                    ephemeral=True
+                )
+                return
+
+            # Create thread for application
+            thread = await hr_channel.create_thread(
+                name=f"Application: {selected_position['title']} - {interaction.user.display_name}",
+                reason=f"Application for {selected_position['title']}"
+            )
+
+            # Format application message
+            message = V3_SYSTEM_MESSAGES['APPLICATION']['THREAD_CREATED'].format(
+                position=selected_position['title'],
+                applicant=interaction.user.mention,
+                rank=next((r.name for r in interaction.user.roles 
+                          if r.name in DraXon_ROLES['leadership'] + 
+                                     DraXon_ROLES['management'] +
+                                     DraXon_ROLES['staff'] +
+                                     DraXon_ROLES['restricted']), 'Unknown'),
+                division=selected_position['division_name'],
+                details=self.statement.value,
+                current=0,
+                required=APPLICATION_SETTINGS['MIN_VOTES_REQUIRED'][selected_position['required_rank']],
+                voters="None yet"
+            )
+
+            await thread.send(message)
+
+            # Create audit log entry
+            audit_query = """
+            INSERT INTO v3_audit_logs (
+                action_type, actor_id, details
+            ) VALUES ($1, $2, $3)
+            """
+            details = json.dumps({
+                'application_id': str(application_id),
+                'position': selected_position['title'],
+                'division': selected_position['division_name']
+            })
+            await self.bot.db.execute(
+                audit_query,
+                'APPLICATION_CREATE',
+                str(interaction.user.id),
+                details
+            )
+
             await interaction.response.send_message(
-                f"❌ Invalid position. Must be one of:\n{chr(10).join(position_titles)}",
+                f"✅ Application submitted for {selected_position['title']}. "
+                f"Please monitor the thread in {hr_channel.mention}.",
                 ephemeral=True
             )
-            return False
-            
-        return True
+
+        except Exception as e:
+            logger.error(f"Error in apply modal: {e}")
+            await interaction.response.send_message(
+                "❌ An error occurred while submitting your application.",
+                ephemeral=True
+            )
 
 class Applications(commands.Cog):
     """DraXon Applications Management"""
@@ -105,104 +195,13 @@ class Applications(commands.Cog):
                 return
             
             # Create and show modal
-            modal = ApplyModal(positions)
+            modal = ApplyModal(self.bot, positions)
             await interaction.response.send_modal(modal)
-            
-            # Wait for modal submission
-            await modal.wait()
-            
-            if modal.is_submitted():
-                # Validate submission
-                if not await modal.on_submit(interaction):
-                    return
-                
-                # Get selected position
-                selected_position = next(
-                    p for p in positions 
-                    if f"{p['title']} ({p['division_name']})" == modal.position.value
-                )
-                
-                # Create application
-                application_query = """
-                INSERT INTO v3_applications (
-                    applicant_id, position_id, details, status, created_at
-                ) VALUES ($1, $2, $3, $4, $5)
-                RETURNING id
-                """
-                application_id = await self.bot.db.fetchval(
-                    application_query,
-                    str(interaction.user.id),
-                    selected_position['id'],
-                    modal.statement.value,
-                    'PENDING',
-                    datetime.utcnow()
-                )
-
-                # Find HR channel for thread creation
-                hr_channel = discord.utils.get(
-                    interaction.guild.channels,
-                    name='human-resources'
-                )
-                
-                if not hr_channel:
-                    await interaction.followup.send(
-                        "❌ Error: HR channel not found.",
-                        ephemeral=True
-                    )
-                    return
-
-                # Create thread for application
-                thread = await hr_channel.create_thread(
-                    name=f"Application: {selected_position['title']} - {interaction.user.display_name}",
-                    reason=f"Application for {selected_position['title']}"
-                )
-
-                # Format application message
-                message = V3_SYSTEM_MESSAGES['APPLICATION']['THREAD_CREATED'].format(
-                    position=selected_position['title'],
-                    applicant=interaction.user.mention,
-                    rank=next((r.name for r in interaction.user.roles 
-                              if r.name in DraXon_ROLES['leadership'] + 
-                                         DraXon_ROLES['management'] +
-                                         DraXon_ROLES['staff'] +
-                                         DraXon_ROLES['restricted']), 'Unknown'),
-                    division=selected_position['division_name'],
-                    details=modal.statement.value,
-                    current=0,
-                    required=APPLICATION_SETTINGS['MIN_VOTES_REQUIRED'][selected_position['required_rank']],
-                    voters="None yet"
-                )
-
-                await thread.send(message)
-
-                # Create audit log entry
-                audit_query = """
-                INSERT INTO v3_audit_logs (
-                    action_type, actor_id, details
-                ) VALUES ($1, $2, $3)
-                """
-                details = json.dumps({
-                    'application_id': str(application_id),
-                    'position': selected_position['title'],
-                    'division': selected_position['division_name']
-                })
-                await self.bot.db.execute(
-                    audit_query,
-                    'APPLICATION_CREATE',
-                    str(interaction.user.id),
-                    details
-                )
-
-                await interaction.followup.send(
-                    f"✅ Application submitted for {selected_position['title']}. "
-                    f"Please monitor the thread in {hr_channel.mention}.",
-                    ephemeral=True
-                )
 
         except Exception as e:
             logger.error(f"Error in apply command: {e}")
-            await interaction.followup.send(
-                "❌ An error occurred while submitting your application.",
+            await interaction.response.send_message(
+                "❌ An error occurred while preparing the application form.",
                 ephemeral=True
             )
 
