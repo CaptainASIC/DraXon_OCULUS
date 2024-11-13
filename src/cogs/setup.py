@@ -79,7 +79,12 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, $2, $3)
+            ) VALUES ($1, 
+                (CASE 
+                    WHEN pg_typeof(actor_id) = 'bigint'::regtype THEN $2::bigint
+                    ELSE $2::text
+                END),
+                $3)
             """
             details = json.dumps({
                 'channels': channels,
@@ -99,16 +104,9 @@ class SetupCog(commands.Cog):
                     content="✅ DraXon OCULUS setup completed successfully!"
                 )
 
-        except asyncpg.exceptions.DatatypeMismatchError:
-            error_msg = ("❌ Database schema needs to be updated. Please run the schema migrations "
-                        "before using this command.")
-            if not channels:
-                await progress_msg.edit(content=error_msg)
-            logger.error("Database schema mismatch - migrations needed")
-            return
         except Exception as e:
             error_msg = f"❌ Error during setup: {str(e)}"
-            if not channels:
+            if not channels:  # Only edit message if not doing channel setup
                 await progress_msg.edit(content=error_msg)
             logger.error(f"Setup error: {e}")
             
@@ -116,7 +114,12 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, $2, $3)
+            ) VALUES ($1, 
+                (CASE 
+                    WHEN pg_typeof(actor_id) = 'bigint'::regtype THEN $2::bigint
+                    ELSE $2::text
+                END),
+                $3)
             """
             details = json.dumps({
                 'status': 'error',
@@ -151,7 +154,10 @@ class SetupCog(commands.Cog):
             # Update division with role ID
             update_query = """
             UPDATE v3_divisions 
-            SET role_id = $1 
+            SET role_id = (CASE 
+                WHEN pg_typeof(role_id) = 'bigint'::regtype THEN $1::bigint
+                ELSE $1::text
+            END)
             WHERE name = $2
             """
             await self.bot.db.execute(update_query, str(role.id), name)
@@ -165,7 +171,10 @@ class SetupCog(commands.Cog):
             # Check if member exists
             member_query = """
             SELECT * FROM v3_members 
-            WHERE discord_id = $1
+            WHERE discord_id = (CASE 
+                WHEN pg_typeof(discord_id) = 'bigint'::regtype THEN $1::bigint
+                ELSE $1::text
+            END)
             """
             member = await self.bot.db.fetchrow(member_query, str(guild_member.id))
 
@@ -174,7 +183,18 @@ class SetupCog(commands.Cog):
                 insert_query = """
                 INSERT INTO v3_members (
                     discord_id, join_date
-                ) VALUES ($1, $2)
+                ) VALUES (
+                    (CASE 
+                        WHEN EXISTS (
+                            SELECT 1 FROM information_schema.columns 
+                            WHERE table_name = 'v3_members' 
+                            AND column_name = 'discord_id' 
+                            AND data_type = 'bigint'
+                        ) THEN $1::bigint
+                        ELSE $1::text
+                    END),
+                    $2
+                )
                 """
                 await self.bot.db.execute(
                     insert_query,
@@ -186,7 +206,12 @@ class SetupCog(commands.Cog):
                 audit_query = """
                 INSERT INTO v3_audit_logs (
                     action_type, actor_id, details
-                ) VALUES ($1, $2, $3)
+                ) VALUES ($1, 
+                    (CASE 
+                        WHEN pg_typeof(actor_id) = 'bigint'::regtype THEN $2::bigint
+                        ELSE $2::text
+                    END),
+                    $3)
                 """
                 details = json.dumps({
                     'member_id': str(guild_member.id)
