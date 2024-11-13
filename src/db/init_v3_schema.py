@@ -21,26 +21,44 @@ async def init_v3_schema(settings):
     try:
         # Create SQLAlchemy engine using the existing connection pool
         engine = create_engine(settings.database_url)
-        inspector = inspect(engine)
         
-        # Drop existing tables in reverse order
-        tables = [
-            'v3_audit_logs',
-            'v3_votes',
-            'v3_applications',
-            'v3_positions',
-            'v3_members',
-            'v3_divisions'
-        ]
-        
+        # Alter existing tables to use TEXT for Discord IDs
         with engine.connect() as connection:
-            for table in tables:
-                if inspector.has_table(table):
-                    connection.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
-                    logger.info(f"Dropped table: {table}")
+            # Alter v3_divisions
+            connection.execute(text("""
+                ALTER TABLE v3_divisions 
+                ALTER COLUMN role_id TYPE TEXT 
+                USING role_id::TEXT
+            """))
+            
+            # Alter v3_members
+            connection.execute(text("""
+                ALTER TABLE v3_members 
+                ALTER COLUMN discord_id TYPE TEXT 
+                USING discord_id::TEXT
+            """))
+            
+            # Alter v3_applications
+            connection.execute(text("""
+                ALTER TABLE v3_applications 
+                ALTER COLUMN thread_id TYPE TEXT 
+                USING thread_id::TEXT
+            """))
+            
+            # Alter v3_audit_logs
+            connection.execute(text("""
+                ALTER TABLE v3_audit_logs 
+                ALTER COLUMN actor_id TYPE TEXT 
+                USING actor_id::TEXT,
+                ALTER COLUMN target_id TYPE TEXT 
+                USING target_id::TEXT
+            """))
+            
             connection.commit()
-        
-        # Create tables in correct order due to foreign key dependencies
+            logger.info("Altered tables to use TEXT for Discord IDs")
+
+        # Create tables if they don't exist
+        inspector = inspect(engine)
         tables = [
             DraXonDivision.__table__,
             DraXonMember.__table__,
@@ -50,12 +68,14 @@ async def init_v3_schema(settings):
             DraXonAuditLog.__table__
         ]
         
-        # Create each table
         for table in tables:
-            Base.metadata.create_all(bind=engine, tables=[table])
-            logger.info(f"Created table: {table.name}")
+            if not inspector.has_table(table.name):
+                Base.metadata.create_all(bind=engine, tables=[table])
+                logger.info(f"Created table: {table.name}")
+            else:
+                logger.info(f"Table already exists: {table.name}")
 
-        # Insert default divisions
+        # Insert default divisions if they don't exist
         from src.utils.constants import DIVISIONS
         with engine.connect() as connection:
             for name, description in DIVISIONS.items():
