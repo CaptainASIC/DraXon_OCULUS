@@ -78,7 +78,7 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, CAST($2 AS TEXT), $3)
+            ) VALUES ($1, CAST($2 AS bigint), $3)
             """
             details = json.dumps({
                 'channels': channels,
@@ -108,7 +108,7 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, CAST($2 AS TEXT), $3)
+            ) VALUES ($1, CAST($2 AS bigint), $3)
             """
             details = json.dumps({
                 'status': 'error',
@@ -143,7 +143,7 @@ class SetupCog(commands.Cog):
             # Update division with role ID
             update_query = """
             UPDATE v3_divisions 
-            SET role_id = CAST($1 AS TEXT)
+            SET role_id = CAST($1 AS bigint)
             WHERE name = $2
             """
             await self.bot.db.execute(update_query, str(role.id), name)
@@ -157,7 +157,7 @@ class SetupCog(commands.Cog):
             # Check if member exists
             member_query = """
             SELECT * FROM v3_members 
-            WHERE discord_id = CAST($1 AS TEXT)
+            WHERE discord_id = CAST($1 AS bigint)
             """
             member = await self.bot.db.fetchrow(member_query, str(guild_member.id))
 
@@ -166,7 +166,7 @@ class SetupCog(commands.Cog):
                 insert_query = """
                 INSERT INTO v3_members (
                     discord_id, join_date
-                ) VALUES (CAST($1 AS TEXT), $2)
+                ) VALUES (CAST($1 AS bigint), $2)
                 """
                 await self.bot.db.execute(
                     insert_query,
@@ -178,7 +178,7 @@ class SetupCog(commands.Cog):
                 audit_query = """
                 INSERT INTO v3_audit_logs (
                     action_type, actor_id, details
-                ) VALUES ($1, CAST($2 AS TEXT), $3)
+                ) VALUES ($1, CAST($2 AS bigint), $3)
                 """
                 details = json.dumps({
                     'member_id': str(guild_member.id)
