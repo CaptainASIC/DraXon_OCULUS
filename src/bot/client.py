@@ -116,6 +116,7 @@ class DraXonOCULUSBot(commands.Bot):
             # Define all cogs to load with dependencies
             cogs = [
                 # Core functionality
+                'src.cogs.channels',      # Must be loaded first for other cogs
                 'src.cogs.setup',         # System setup and configuration
                 'src.cogs.members',       # Member management
                 'src.cogs.promotion',     # Role management
