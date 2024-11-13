@@ -11,10 +11,68 @@ import json
 from src.utils.constants import (
     RANK_CODES,
     DIVISIONS,
-    DraXon_ROLES
+    DraXon_ROLES,
+    ROLE_HIERARCHY
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
+
+class PositionModal(discord.ui.Modal, title="Create Position"):
+    """Modal for creating a new position"""
+    
+    def __init__(self):
+        super().__init__()
+        
+        self.title_input = discord.ui.TextInput(
+            label="Position Title",
+            placeholder="Enter the position title",
+            required=True,
+            max_length=100
+        )
+        
+        # Create dropdown-style input for division
+        divisions_list = ", ".join(DIVISIONS.keys())
+        self.division = discord.ui.TextInput(
+            label="Division",
+            placeholder=f"Choose from: {divisions_list}",
+            required=True,
+            max_length=50
+        )
+        
+        # Create dropdown-style input for rank
+        # Filter ranks to exclude leadership roles
+        available_ranks = [r for r in ROLE_HIERARCHY if r not in DraXon_ROLES['leadership']]
+        ranks_list = ", ".join(available_ranks)
+        self.required_rank = discord.ui.TextInput(
+            label="Required Rank",
+            placeholder=f"Choose from: {ranks_list}",
+            required=True,
+            max_length=50
+        )
+        
+        self.add_item(self.title_input)
+        self.add_item(self.division)
+        self.add_item(self.required_rank)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Validate division
+        if self.division.value not in DIVISIONS:
+            await interaction.response.send_message(
+                f"❌ Invalid division. Must be one of: {', '.join(DIVISIONS.keys())}",
+                ephemeral=True
+            )
+            return False
+            
+        # Validate rank
+        available_ranks = [r for r in ROLE_HIERARCHY if r not in DraXon_ROLES['leadership']]
+        if self.required_rank.value not in available_ranks:
+            await interaction.response.send_message(
+                f"❌ Invalid rank. Must be one of: {', '.join(available_ranks)}",
+                ephemeral=True
+            )
+            return False
+            
+        return True
 
 class Positions(commands.Cog):
     """DraXon Position Management"""
@@ -26,17 +84,13 @@ class Positions(commands.Cog):
     @app_commands.command(name="draxon-position")
     @app_commands.describe(
         action="Action to perform (list/add/remove)",
-        name="Position name (for add/remove)",
-        division="Division name (for add)",
-        rank_required="Required rank code (for add)"
+        name="Position name (for remove)"
     )
     async def position(
         self,
         interaction: discord.Interaction,
         action: str,
-        name: Optional[str] = None,
-        division: Optional[str] = None,
-        rank_required: Optional[str] = None
+        name: Optional[str] = None
     ):
         """Manage DraXon positions"""
         
@@ -54,13 +108,64 @@ class Positions(commands.Cog):
         if action.lower() == "list":
             await self._list_positions(interaction)
         elif action.lower() == "add":
-            if not all([name, division, rank_required]):
-                await interaction.response.send_message(
-                    "❌ Name, division, and rank_required are required for adding positions.",
+            # Show modal for adding position
+            modal = PositionModal()
+            await interaction.response.send_modal(modal)
+            
+            # Wait for modal submission
+            await modal.wait()
+            
+            if modal.is_submitted():
+                # Validate submission
+                if not await modal.on_submit(interaction):
+                    return
+                
+                # Get division ID
+                division_query = "SELECT id FROM v3_divisions WHERE name = $1"
+                division_id = await self.bot.db.fetchval(
+                    division_query,
+                    modal.division.value
+                )
+                
+                # Create position
+                position_query = """
+                INSERT INTO v3_positions (
+                    title, division_id, required_rank, status
+                ) VALUES ($1, $2, $3, $4)
+                RETURNING id
+                """
+                position_id = await self.bot.db.fetchval(
+                    position_query,
+                    modal.title_input.value,
+                    division_id,
+                    modal.required_rank.value[:3].upper(),  # Convert to code (e.g., EXE)
+                    'OPEN'
+                )
+                
+                # Create audit log
+                audit_query = """
+                INSERT INTO v3_audit_logs (
+                    action_type, actor_id, details
+                ) VALUES ($1, $2, $3)
+                """
+                details = json.dumps({
+                    'position_id': position_id,
+                    'title': modal.title_input.value,
+                    'division': modal.division.value,
+                    'required_rank': modal.required_rank.value
+                })
+                await self.bot.db.execute(
+                    audit_query,
+                    'POSITION_CREATE',
+                    str(interaction.user.id),
+                    details
+                )
+                
+                await interaction.followup.send(
+                    f"✅ Position '{modal.title_input.value}' created successfully.",
                     ephemeral=True
                 )
-                return
-            await self._add_position(interaction, name, division, rank_required)
+                
         elif action.lower() == "remove":
             if not name:
                 await interaction.response.send_message(
@@ -116,85 +221,6 @@ class Positions(commands.Cog):
             )
 
         await interaction.response.send_message(embed=embed)
-
-    async def _add_position(
-        self,
-        interaction: discord.Interaction,
-        name: str,
-        division_name: str,
-        rank_required: str
-    ):
-        """Add a new position"""
-        # Validate rank code
-        if rank_required.upper() not in ['EXE', 'TL', 'EMP']:
-            await interaction.response.send_message(
-                "❌ Invalid rank code. Use EXE, TL, or EMP.",
-                ephemeral=True
-            )
-            return
-
-        # Get division
-        division_query = """
-        SELECT * FROM v3_divisions 
-        WHERE name = $1
-        """
-        division = await self.bot.db.fetchrow(division_query, division_name)
-
-        if not division:
-            await interaction.response.send_message(
-                "❌ Invalid division name.",
-                ephemeral=True
-            )
-            return
-
-        # Check if position already exists
-        existing_query = """
-        SELECT * FROM v3_positions 
-        WHERE title = $1 AND division_id = $2
-        """
-        existing = await self.bot.db.fetchrow(existing_query, name, division['id'])
-
-        if existing:
-            await interaction.response.send_message(
-                "❌ Position already exists in this division.",
-                ephemeral=True
-            )
-            return
-
-        # Create position
-        position_query = """
-        INSERT INTO v3_positions (title, division_id, required_rank, status)
-        VALUES ($1, $2, $3, $4)
-        """
-        await self.bot.db.execute(
-            position_query,
-            name,
-            division['id'],
-            rank_required.upper(),
-            'OPEN'
-        )
-
-        # Log action
-        audit_query = """
-        INSERT INTO v3_audit_logs (action_type, actor_id, details)
-        VALUES ($1, $2::BIGINT, $3)
-        """
-        details = json.dumps({
-            'position': name,
-            'division': division_name,
-            'rank_required': rank_required.upper()
-        })
-        await self.bot.db.execute(
-            audit_query,
-            'POSITION_CREATE',
-            interaction.user.id,
-            details
-        )
-
-        await interaction.response.send_message(
-            f"✅ Position '{name}' created in {division_name} division.",
-            ephemeral=True
-        )
 
     async def _remove_position(self, interaction: discord.Interaction, name: str):
         """Remove a position"""
