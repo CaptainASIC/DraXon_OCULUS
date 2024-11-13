@@ -66,6 +66,30 @@ class ApplyModal(discord.ui.Modal, title="Apply for Position"):
                 if f"{p['title']} ({p['division_name']})" == self.position.value
             )
             
+            # Get member ID from discord ID
+            member_query = """
+            SELECT id FROM v3_members
+            WHERE discord_id = $1
+            """
+            member_id = await self.bot.db.fetchval(
+                member_query,
+                str(interaction.user.id)
+            )
+            
+            if not member_id:
+                # Create member if they don't exist
+                member_query = """
+                INSERT INTO v3_members (discord_id, rank, status)
+                VALUES ($1, $2, $3)
+                RETURNING id
+                """
+                member_id = await self.bot.db.fetchval(
+                    member_query,
+                    str(interaction.user.id),
+                    'AP',  # Applicant rank
+                    'ACTIVE'
+                )
+            
             # Create application
             application_query = """
             INSERT INTO v3_applications (
@@ -75,7 +99,7 @@ class ApplyModal(discord.ui.Modal, title="Apply for Position"):
             """
             application_id = await self.bot.db.fetchval(
                 application_query,
-                str(interaction.user.id),
+                member_id,  # Use member_id instead of discord_id
                 selected_position['id'],
                 self.statement.value,
                 'PENDING',
@@ -177,14 +201,15 @@ class Applications(commands.Cog):
                 )
                 return
             
-            # Check if user already has pending application
+            # Check if user already has pending application using member ID
             pending_query = """
-            SELECT * FROM v3_applications
-            WHERE applicant_id = $1 AND status = 'PENDING'
+            SELECT a.* FROM v3_applications a
+            JOIN v3_members m ON a.applicant_id = m.id
+            WHERE m.discord_id = $1 AND a.status = 'PENDING'
             """
             pending = await self.bot.db.fetchrow(
                 pending_query,
-                str(interaction.user.id)
+                str(interaction.user.id)  # Pass discord_id as string
             )
             
             if pending:
