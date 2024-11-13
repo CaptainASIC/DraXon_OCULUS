@@ -26,28 +26,28 @@ async def init_v3_schema(settings):
         with engine.connect() as connection:
             # Alter v3_divisions
             connection.execute(text("""
-                ALTER TABLE v3_divisions 
+                ALTER TABLE IF EXISTS v3_divisions 
                 ALTER COLUMN role_id TYPE TEXT 
                 USING role_id::TEXT
             """))
             
             # Alter v3_members
             connection.execute(text("""
-                ALTER TABLE v3_members 
+                ALTER TABLE IF EXISTS v3_members 
                 ALTER COLUMN discord_id TYPE TEXT 
                 USING discord_id::TEXT
             """))
             
             # Alter v3_applications
             connection.execute(text("""
-                ALTER TABLE v3_applications 
+                ALTER TABLE IF EXISTS v3_applications 
                 ALTER COLUMN thread_id TYPE TEXT 
                 USING thread_id::TEXT
             """))
             
             # Alter v3_audit_logs
             connection.execute(text("""
-                ALTER TABLE v3_audit_logs 
+                ALTER TABLE IF EXISTS v3_audit_logs 
                 ALTER COLUMN actor_id TYPE TEXT 
                 USING actor_id::TEXT,
                 ALTER COLUMN target_id TYPE TEXT 
