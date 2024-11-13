@@ -10,46 +10,53 @@ pydantic-settings>=2.0.0
 asyncpg>=0.28.0
 SQLAlchemy>=2.0.0
 psycopg2-binary>=2.9.9
-alembic>=1.12.0  # For database migrations
+alembic>=1.12.0
 
 # Cache and Messaging
 redis>=5.0.0
-aioredis>=2.0.0  # For async Redis operations
-msgpack>=1.0.5  # For message serialization
+aioredis>=2.0.0
+msgpack>=1.0.5
 
 # HTTP and Network
 requests>=2.31.0
 aiohttp>=3.8.5
-yarl>=1.9.2  # URL parsing
-multidict>=6.0.4  # HTTP headers
-aiodns>=3.1.0  # DNS resolution
-aiofiles>=23.2.1  # Async file operations
+yarl>=1.9.2
+multidict>=6.0.4
+aiodns>=3.1.0
+aiofiles>=23.2.1
 
 # Data Processing
 beautifulsoup4>=4.12.2
-lxml>=4.9.3  # XML/HTML processing
+lxml>=4.9.3
 python-dateutil>=2.8.2
 pytz>=2023.3
-ujson>=5.8.0  # Fast JSON processing
+ujson>=5.8.0
 
 # Security and Auth
 cryptography>=41.0.0
 certifi>=2023.7.22
-PyJWT>=2.8.0  # JWT handling
+PyJWT>=2.8.0
 
 # Utilities
-colorlog>=6.8.0  # Colored logging
-humanize>=4.8.0  # Human readable numbers/dates
-python-slugify>=8.0.1  # URL slugs
-tenacity>=8.2.3  # Retry logic
-cachetools>=5.3.1  # Caching utilities
+colorlog>=6.8.0
+humanize>=4.8.0
+python-slugify>=8.0.1
+tenacity>=8.2.3
+cachetools>=5.3.1
 
 # Development and Testing
-black>=23.7.0  # Code formatting
-flake8>=6.1.0  # Linting
-pytest>=7.4.0  # Testing
-pytest-asyncio>=0.21.1  # Async testing
-pytest-cov>=4.1.0  # Test coverage
-mypy>=1.5.1  # Type checking
-types-all>=1.0.0  # Type stubs
-isort>=5.12.0  # Import sorting
+black>=23.7.0
+flake8>=6.1.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
+mypy>=1.5.1
+
+# Type stubs
+types-redis>=4.6.0
+types-requests>=2.31.0
+types-aiofiles>=23.2.0
+types-python-dateutil>=2.8.19
+types-pytz>=2023.3.1
+types-beautifulsoup4>=4.12.0
+types-ujson>=5.8.0
