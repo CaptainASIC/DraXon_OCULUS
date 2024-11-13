@@ -1,8 +1,11 @@
 """Constants for DraXon OCULUS"""
 
-# Version and description
+# Version info
 APP_VERSION = "3.0.1"
-BOT_DESCRIPTION = "DraXon Organizational Command & Unified Leadership Implementation System"
+BUILD_DATE = "Nov 2024"
+
+# Bot Description - Simple format like PULSE
+BOT_DESCRIPTION = "Organizational Command & Unified Leadership Implementation System"
 
 # Role Configuration
 ROLE_HIERARCHY = [
@@ -128,8 +131,8 @@ COMPARE_STATUS = {
 RSI_CONFIG = {
     'ORGANIZATION_SID': "DRAXON",
     'MEMBERS_PER_PAGE': 32,
-    'STATUS_URL': "https://status.robertsspaceindustries.com/api/v2/status",
-    'FEED_URL': "https://status.robertsspaceindustries.com/api/v2/incidents/unresolved",
+    'STATUS_URL': "https://status.robertsspaceindustries.com/",
+    'FEED_URL': "https://status.robertsspaceindustries.com/index.xml",
     'MAINTENANCE_START': "22:00",  # UTC
     'MAINTENANCE_DURATION': 3,     # Hours
     'BASE_URL': "https://robertsspaceindustries.com",
