@@ -13,15 +13,15 @@ class DraXonDivision(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(50), unique=True, nullable=False)
     description = Column(Text)
-    role_id = Column(String(20))  # Discord role ID as string to avoid int32 overflow
+    role_id = Column(Text)  # Discord role ID as text
 
 class DraXonMember(Base):
     """Member model"""
     __tablename__ = 'v3_members'
 
     id = Column(Integer, primary_key=True)
-    discord_id = Column(String(20), unique=True, nullable=False)  # Discord ID as string
-    rank = Column(String(3), nullable=False)  # MG, CR, EXE, TL, EMP, AP
+    discord_id = Column(Text, unique=True, nullable=False)  # Discord ID as text
+    rank = Column(String(3))  # MG, CR, EXE, TL, EMP, AP
     division_id = Column(Integer, ForeignKey('v3_divisions.id'))
     join_date = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String(20), default='ACTIVE')
@@ -44,7 +44,7 @@ class DraXonApplication(Base):
     id = Column(Integer, primary_key=True)
     applicant_id = Column(Integer, ForeignKey('v3_members.id'), nullable=False)
     position_id = Column(Integer, ForeignKey('v3_positions.id'), nullable=False)
-    thread_id = Column(String(20), nullable=False)  # Discord thread ID as string
+    thread_id = Column(Text, nullable=False)  # Discord thread ID as text
     status = Column(String(20), default='PENDING')
     previous_experience = Column(Text)
     position_statement = Column(Text)
@@ -68,7 +68,7 @@ class DraXonAuditLog(Base):
 
     id = Column(Integer, primary_key=True)
     action_type = Column(String(50), nullable=False)
-    actor_id = Column(String(20), nullable=False)  # Discord ID as string
-    target_id = Column(String(20))  # Optional target Discord ID as string
+    actor_id = Column(Text, nullable=False)  # Discord ID as text
+    target_id = Column(Text)  # Optional target Discord ID as text
     details = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
