@@ -151,7 +151,7 @@ class Positions(commands.Cog):
         user_roles = [role.name for role in interaction.user.roles]
         is_authorized = any(role in DraXon_ROLES['leadership'] for role in user_roles)
         
-        if not is_authorized:
+        if action.lower() != "list" and not is_authorized:
             await interaction.response.send_message(
                 "❌ You don't have permission to manage positions.",
                 ephemeral=True
@@ -205,10 +205,8 @@ class Positions(commands.Cog):
                 for pos in positions:
                     if pos['id'] is not None:  # Check if position exists
                         status = "🟢 OPEN" if pos['status'] == "OPEN" else "🔴 FILLED"
-                        holder = f"<@{pos['holder_id']}>" if pos['holder_id'] else "None"
                         position_text += f"📍 **{pos['title']}** ({status})\n"
-                        position_text += f"└ Required Rank: {pos['required_rank']}\n"
-                        position_text += f"└ Current Holder: {holder}\n\n"
+                        position_text += f"└ Required Rank: {pos['required_rank']}\n\n"
             else:
                 position_text = "No positions defined\n"
 
