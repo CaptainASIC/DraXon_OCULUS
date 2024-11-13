@@ -12,88 +12,84 @@ async def init_v3_schema(settings):
         # Connect directly with asyncpg to run migrations
         conn = await asyncpg.connect(settings.database_url)
         
-        # Run migrations
+        # Drop and recreate tables with correct types
         await conn.execute("""
-            DO $$ 
-            BEGIN
-                -- Alter v3_divisions
-                ALTER TABLE v3_divisions 
-                ALTER COLUMN role_id TYPE TEXT;
-                
-                -- Alter v3_members
-                ALTER TABLE v3_members 
-                ALTER COLUMN discord_id TYPE TEXT;
-                
-                -- Alter v3_applications
-                ALTER TABLE v3_applications 
-                ALTER COLUMN thread_id TYPE TEXT;
-                
-                -- Alter v3_audit_logs
-                ALTER TABLE v3_audit_logs 
-                ALTER COLUMN actor_id TYPE TEXT,
-                ALTER COLUMN target_id TYPE TEXT;
-            EXCEPTION 
-                WHEN undefined_table THEN 
-                    NULL;
-                WHEN undefined_column THEN 
-                    NULL;
-            END $$;
+            DROP TABLE IF EXISTS v3_audit_logs CASCADE;
+            DROP TABLE IF EXISTS v3_votes CASCADE;
+            DROP TABLE IF EXISTS v3_applications CASCADE;
+            DROP TABLE IF EXISTS v3_positions CASCADE;
+            DROP TABLE IF EXISTS v3_members CASCADE;
+            DROP TABLE IF EXISTS v3_divisions CASCADE;
+
+            CREATE TABLE v3_divisions (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(50) UNIQUE NOT NULL,
+                description TEXT,
+                role_id TEXT
+            );
+
+            CREATE TABLE v3_members (
+                id SERIAL PRIMARY KEY,
+                discord_id TEXT UNIQUE NOT NULL,
+                rank VARCHAR(3),
+                division_id INTEGER REFERENCES v3_divisions(id),
+                join_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+
+            CREATE TABLE v3_positions (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(100) NOT NULL,
+                division_id INTEGER REFERENCES v3_divisions(id) NOT NULL,
+                required_rank VARCHAR(3) NOT NULL,
+                status VARCHAR(20) DEFAULT 'OPEN',
+                holder_id INTEGER REFERENCES v3_members(id)
+            );
+
+            CREATE TABLE v3_applications (
+                id SERIAL PRIMARY KEY,
+                applicant_id INTEGER REFERENCES v3_members(id) NOT NULL,
+                position_id INTEGER REFERENCES v3_positions(id) NOT NULL,
+                thread_id TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'PENDING',
+                previous_experience TEXT,
+                position_statement TEXT,
+                additional_info TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE v3_votes (
+                id SERIAL PRIMARY KEY,
+                application_id INTEGER REFERENCES v3_applications(id) NOT NULL,
+                voter_id INTEGER REFERENCES v3_members(id) NOT NULL,
+                vote VARCHAR(10) NOT NULL,
+                comment TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE v3_audit_logs (
+                id SERIAL PRIMARY KEY,
+                action_type VARCHAR(50) NOT NULL,
+                actor_id TEXT NOT NULL,
+                target_id TEXT,
+                details JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         
-        await conn.close()
-        logger.info("Database migrations complete")
-
-    except Exception as e:
-        logger.error(f"Error in database migration: {e}")
-        raise
-
-    try:
-        # Now create engine for table creation
-        engine = create_engine(settings.database_url)
-        
-        # Create tables if they don't exist
-        from src.db.v3_models import (
-            Base,
-            DraXonDivision,
-            DraXonMember,
-            DraXonPosition,
-            DraXonApplication,
-            DraXonVote,
-            DraXonAuditLog
-        )
-        
-        tables = [
-            DraXonDivision.__table__,
-            DraXonMember.__table__,
-            DraXonPosition.__table__,
-            DraXonApplication.__table__,
-            DraXonVote.__table__,
-            DraXonAuditLog.__table__
-        ]
-        
-        inspector = inspect(engine)
-        for table in tables:
-            if not inspector.has_table(table.name):
-                Base.metadata.create_all(bind=engine, tables=[table])
-                logger.info(f"Created table: {table.name}")
-            else:
-                logger.info(f"Table already exists: {table.name}")
-
-        # Insert default divisions if they don't exist
+        # Insert default divisions
         from src.utils.constants import DIVISIONS
-        with engine.connect() as connection:
-            for name, description in DIVISIONS.items():
-                connection.execute(
-                    text("""
-                    INSERT INTO v3_divisions (name, description)
-                    VALUES (:name, :description)
-                    ON CONFLICT (name) DO NOTHING
-                    """),
-                    {"name": name, "description": description}
-                )
-                connection.commit()
-                logger.info(f"Created division: {name}")
+        for name, description in DIVISIONS.items():
+            await conn.execute(
+                """
+                INSERT INTO v3_divisions (name, description)
+                VALUES ($1, $2)
+                ON CONFLICT (name) DO NOTHING
+                """,
+                name, description
+            )
         
+        await conn.close()
         logger.info("V3 schema initialization complete")
 
     except Exception as e:
