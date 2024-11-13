@@ -1,11 +1,8 @@
 """Constants for DraXon OCULUS"""
 
-# Version info
-APP_VERSION = "3.0.0"
-BUILD_DATE = "Nov 2024"
-
-# Bot Description - Simple format like PULSE
-BOT_DESCRIPTION = "Organizational Command & Unified Leadership Implementation System"
+# Version and description
+APP_VERSION = "3.0.1"
+BOT_DESCRIPTION = "DraXon Organizational Command & Unified Leadership Implementation System"
 
 # Role Configuration
 ROLE_HIERARCHY = [

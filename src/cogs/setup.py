@@ -13,11 +13,169 @@ from src.utils.constants import (
     DraXon_ROLES,
     STATUS_EMOJIS,
     ROLE_HIERARCHY,
-    DIVISIONS,  # Added DIVISIONS import
+    DIVISIONS,
     RANK_CODES
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
+
+class ChannelSelectView(discord.ui.View):
+    """View for channel selection during setup"""
+    
+    def __init__(self, bot, timeout=180):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.incidents_channel = None
+        self.promotion_channel = None
+        self.demotion_channel = None
+        self.reminder_channel = None
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        channel_types=[discord.ChannelType.text],
+        placeholder="Select Incidents Channel",
+        min_values=1,
+        max_values=1
+    )
+    async def incidents_select(self, interaction: discord.Interaction, 
+                             select: discord.ui.Select):
+        """Handle incidents channel selection"""
+        self.incidents_channel = select.values[0]
+        select.disabled = True
+        select.placeholder = f"Incidents Channel: {self.incidents_channel.name}"
+        await self.check_completion(interaction)
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        channel_types=[discord.ChannelType.text],
+        placeholder="Select Promotion Channel",
+        min_values=1,
+        max_values=1
+    )
+    async def promotion_select(self, interaction: discord.Interaction, 
+                             select: discord.ui.Select):
+        """Handle promotion channel selection"""
+        self.promotion_channel = select.values[0]
+        select.disabled = True
+        select.placeholder = f"Promotion Channel: {self.promotion_channel.name}"
+        await self.check_completion(interaction)
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        channel_types=[discord.ChannelType.text],
+        placeholder="Select Demotion Channel",
+        min_values=1,
+        max_values=1
+    )
+    async def demotion_select(self, interaction: discord.Interaction, 
+                             select: discord.ui.Select):
+        """Handle demotion channel selection"""
+        self.demotion_channel = select.values[0]
+        select.disabled = True
+        select.placeholder = f"Demotion Channel: {self.demotion_channel.name}"
+        await self.check_completion(interaction)
+
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        channel_types=[discord.ChannelType.text],
+        placeholder="Select Reminder Channel",
+        min_values=1,
+        max_values=1
+    )
+    async def reminder_select(self, interaction: discord.Interaction, 
+                            select: discord.ui.Select):
+        """Handle reminder channel selection"""
+        self.reminder_channel = select.values[0]
+        select.disabled = True
+        select.placeholder = f"Reminder Channel: {self.reminder_channel.name}"
+        await self.check_completion(interaction)
+
+    @discord.ui.button(label="Reset Selections", style=discord.ButtonStyle.secondary)
+    async def reset_button(self, interaction: discord.Interaction, 
+                          button: discord.ui.Button):
+        """Reset all selections"""
+        for child in self.children:
+            if isinstance(child, discord.ui.ChannelSelect):
+                child.disabled = False
+                child.placeholder = child.placeholder.split(":")[0]
+        
+        self.incidents_channel = None
+        self.promotion_channel = None
+        self.demotion_channel = None
+        self.reminder_channel = None
+        
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Confirm Setup", style=discord.ButtonStyle.green, disabled=True)
+    async def confirm_button(self, interaction: discord.Interaction, 
+                           button: discord.ui.Button):
+        """Process the final setup"""
+        try:
+            # Store channel IDs in Redis
+            channel_data = {
+                'incidents': str(self.incidents_channel.id),
+                'promotion': str(self.promotion_channel.id),
+                'demotion': str(self.demotion_channel.id),
+                'reminder': str(self.reminder_channel.id)
+            }
+            
+            await self.bot.redis.hmset('channel_ids', channel_data)
+            
+            # Update bot's channel IDs
+            self.bot.incidents_channel_id = self.incidents_channel.id
+            self.bot.promotion_channel_id = self.promotion_channel.id
+            self.bot.demotion_channel_id = self.demotion_channel.id
+            self.bot.reminder_channel_id = self.reminder_channel.id
+
+            # Create confirmation embed
+            embed = discord.Embed(
+                title="✅ Setup Complete",
+                description="Channel configuration has been updated:",
+                color=discord.Color.green()
+            )
+            
+            embed.add_field(
+                name="Channel Assignments",
+                value=f"📢 Incidents: {self.incidents_channel.mention}\n"
+                      f"🎉 Promotions: {self.promotion_channel.mention}\n"
+                      f"🔄 Demotions: {self.demotion_channel.mention}\n"
+                      f"📋 Reminders: {self.reminder_channel.mention}",
+                inline=False
+            )
+
+            # Disable all components
+            for child in self.children:
+                child.disabled = True
+
+            await interaction.response.edit_message(embed=embed, view=self)
+
+        except Exception as e:
+            logger.error(f"Error in setup confirmation: {e}")
+            await interaction.response.send_message(
+                "❌ An error occurred during setup. Please try again.",
+                ephemeral=True
+            )
+
+    async def check_completion(self, interaction: discord.Interaction):
+        """Check if all channels have been selected"""
+        all_selected = all([
+            self.incidents_channel,
+            self.promotion_channel,
+            self.demotion_channel,
+            self.reminder_channel
+        ])
+        
+        # Enable/disable confirm button based on completion
+        for child in self.children:
+            if isinstance(child, discord.ui.Button) and child.label == "Confirm Setup":
+                child.disabled = not all_selected
+        
+        await interaction.response.edit_message(view=self)
+
+    async def on_timeout(self):
+        """Handle timeout by disabling all components"""
+        for child in self.children:
+            child.disabled = True
 
 class SetupCog(commands.Cog):
     """DraXon OCULUS Setup and Configuration"""
@@ -44,16 +202,28 @@ class SetupCog(commands.Cog):
     ):
         """Configure DraXon OCULUS system"""
         try:
-            # Create progress message
+            if channels:
+                embed = discord.Embed(
+                    title="DraXon OCULUS Channel Setup",
+                    description="Please select the channels for each notification type below.\n"
+                               "All channels must be selected before confirming the setup.",
+                    color=discord.Color.blue()
+                )
+                
+                view = ChannelSelectView(self.bot)
+                await interaction.response.send_message(
+                    embed=embed,
+                    view=view,
+                    ephemeral=True
+                )
+                return
+
+            # Create progress message for other options
             await interaction.response.send_message(
                 "🔄 Starting DraXon OCULUS setup...",
                 ephemeral=True
             )
             progress_msg = await interaction.original_response()
-
-            if channels:
-                await progress_msg.edit(content="🔄 Setting up channels...")
-                await self._setup_channels(interaction.guild)
 
             if divisions:
                 await progress_msg.edit(content="🏢 Setting up divisions...")
@@ -73,7 +243,7 @@ class SetupCog(commands.Cog):
                 action_type, actor_id, details
             ) VALUES ($1, $2::BIGINT, $3)
             """
-            details = json.dumps({  # Convert dict to JSON string
+            details = json.dumps({
                 'channels': channels,
                 'divisions': divisions,
                 'roles': roles,
@@ -84,16 +254,18 @@ class SetupCog(commands.Cog):
                 audit_query,
                 'SYSTEM_SETUP',
                 interaction.user.id,
-                details  # Pass JSON string
+                details
             )
 
-            await progress_msg.edit(
-                content="✅ DraXon OCULUS setup completed successfully!"
-            )
+            if not channels:  # Only show completion if not doing channel setup
+                await progress_msg.edit(
+                    content="✅ DraXon OCULUS setup completed successfully!"
+                )
 
         except Exception as e:
             error_msg = f"❌ Error during setup: {str(e)}"
-            await progress_msg.edit(content=error_msg)
+            if not channels:  # Only edit message if not doing channel setup
+                await progress_msg.edit(content=error_msg)
             logger.error(f"Setup error: {e}")
             
             # Log error
@@ -102,7 +274,7 @@ class SetupCog(commands.Cog):
                 action_type, actor_id, details
             ) VALUES ($1, $2::BIGINT, $3)
             """
-            details = json.dumps({  # Convert dict to JSON string
+            details = json.dumps({
                 'status': 'error',
                 'error': str(e)
             })
@@ -110,40 +282,8 @@ class SetupCog(commands.Cog):
                 audit_query,
                 'SYSTEM_SETUP',
                 interaction.user.id,
-                details  # Pass JSON string
+                details
             )
-
-    async def _setup_channels(self, guild: discord.Guild):
-        """Set up channels"""
-        # Create category if it doesn't exist
-        category = discord.utils.get(guild.categories, name="DraXon OCULUS")
-        if not category:
-            category = await guild.create_category(
-                "DraXon OCULUS",
-                reason="DraXon OCULUS Setup"
-            )
-
-        # Create required channels
-        channels = {
-            'incidents': "📢 Incidents",
-            'promotion': "🎉 Promotions",
-            'demotion': "🔄 Demotions",
-            'reminder': "📋 Reminders"
-        }
-
-        for channel_type, channel_name in channels.items():
-            channel = discord.utils.get(category.channels, name=channel_name)
-            if not channel:
-                channel = await category.create_text_channel(
-                    channel_name,
-                    reason="DraXon OCULUS Setup"
-                )
-            
-            # Store channel ID
-            setattr(self.bot, f"{channel_type}_channel_id", channel.id)
-
-        # Save channel IDs to Redis
-        await self.bot._save_channel_ids()
 
     async def _setup_divisions(self, guild: discord.Guild):
         """Set up divisions"""
@@ -171,7 +311,7 @@ class SetupCog(commands.Cog):
                 action_type, actor_id, details
             ) VALUES ($1, $2::BIGINT, $3)
             """
-            details = json.dumps({  # Convert dict to JSON string
+            details = json.dumps({
                 'role_name': rank_name,
                 'role_id': str(role.id),
                 'rank_code': rank_code
@@ -180,7 +320,7 @@ class SetupCog(commands.Cog):
                 audit_query,
                 'ROLE_CREATE',
                 self.bot.user.id,
-                details  # Pass JSON string
+                details
             )
 
         # Create division roles
@@ -234,7 +374,7 @@ class SetupCog(commands.Cog):
                     action_type, actor_id, details
                 ) VALUES ($1, $2::BIGINT, $3)
                 """
-                details = json.dumps({  # Convert dict to JSON string
+                details = json.dumps({
                     'member_id': str(guild_member.id),
                     'initial_rank': 'AP'
                 })
@@ -242,7 +382,7 @@ class SetupCog(commands.Cog):
                     audit_query,
                     'MEMBER_CREATE',
                     self.bot.user.id,
-                    details  # Pass JSON string
+                    details
                 )
 
 async def setup(bot):

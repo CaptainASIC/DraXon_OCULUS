@@ -11,7 +11,7 @@ import json
 from src.utils.constants import (
     RANK_CODES,
     DIVISIONS,
-    DraXon_ROLES  # Added for role checking
+    DraXon_ROLES
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -77,57 +77,41 @@ class Positions(commands.Cog):
 
     async def _list_positions(self, interaction: discord.Interaction):
         """List all positions by division"""
-        divisions_query = """
-        SELECT d.*, 
-               p.id as pos_id, p.title, p.status, p.required_rank,
-               m.discord_id as holder_id
-        FROM v3_divisions d
-        LEFT JOIN v3_positions p ON d.id = p.division_id
-        LEFT JOIN v3_members m ON p.holder_id = m.id
-        ORDER BY d.name, p.title
-        """
-        results = await self.bot.db.fetch(divisions_query)
-        
         embed = discord.Embed(
             title="DraXon Positions Overview",
             color=discord.Color.blue(),
             timestamp=datetime.now(timezone.utc)
         )
 
-        current_division = None
-        position_text = ""
+        # Get all divisions and their positions
+        for division_name in DIVISIONS:
+            # Get positions for this division
+            positions_query = """
+            SELECT p.*, m.discord_id as holder_id
+            FROM v3_divisions d
+            LEFT JOIN v3_positions p ON d.id = p.division_id
+            LEFT JOIN v3_members m ON p.holder_id = m.id
+            WHERE d.name = $1
+            ORDER BY p.title
+            """
+            positions = await self.bot.db.fetch(positions_query, division_name)
+            
+            # Format positions text
+            position_text = ""
+            if positions and any(p['id'] is not None for p in positions):
+                for pos in positions:
+                    if pos['id'] is not None:  # Check if position exists
+                        status = "🟢 OPEN" if pos['status'] == "OPEN" else "🔴 FILLED"
+                        holder = f"<@{pos['holder_id']}>" if pos['holder_id'] else "None"
+                        position_text += f"📍 **{pos['title']}** ({status})\n"
+                        position_text += f"└ Required Rank: {pos['required_rank']}\n"
+                        position_text += f"└ Current Holder: {holder}\n\n"
+            else:
+                position_text = "No positions defined\n"
 
-        for row in results:
-            if current_division != row['name']:
-                # Add previous division's positions if any
-                if current_division and position_text:
-                    embed.add_field(
-                        name=f"__{current_division}__",
-                        value=position_text,
-                        inline=False
-                    )
-                # Start new division
-                current_division = row['name']
-                position_text = ""
-
-            if row['pos_id']:  # If position exists
-                status = "🟢 OPEN" if row['status'] == "OPEN" else "🔴 FILLED"
-                holder = f"<@{row['holder_id']}>" if row['holder_id'] else "None"
-                position_text += f"📍 **{row['title']}** ({status})\n"
-                position_text += f"└ Required Rank: {row['required_rank']}\n"
-                position_text += f"└ Current Holder: {holder}\n\n"
-
-        # Add last division's positions
-        if current_division and position_text:
             embed.add_field(
-                name=f"__{current_division}__",
+                name=f"__{division_name}__",
                 value=position_text,
-                inline=False
-            )
-        elif current_division:
-            embed.add_field(
-                name=f"__{current_division}__",
-                value="No positions defined",
                 inline=False
             )
 
