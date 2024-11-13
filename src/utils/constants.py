@@ -128,8 +128,8 @@ COMPARE_STATUS = {
 RSI_CONFIG = {
     'ORGANIZATION_SID': "DRAXON",
     'MEMBERS_PER_PAGE': 32,
-    'STATUS_URL': "https://status.robertsspaceindustries.com/",
-    'FEED_URL': "https://status.robertsspaceindustries.com/index.xml",
+    'STATUS_URL': "https://status.robertsspaceindustries.com/api/v2/status",
+    'FEED_URL': "https://status.robertsspaceindustries.com/api/v2/incidents/unresolved",
     'MAINTENANCE_START': "22:00",  # UTC
     'MAINTENANCE_DURATION': 3,     # Hours
     'BASE_URL': "https://robertsspaceindustries.com",
