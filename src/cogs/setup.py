@@ -245,7 +245,7 @@ class SetupCog(commands.Cog):
             await self.bot.db.execute(
                 audit_query,
                 'SYSTEM_SETUP',
-                str(interaction.user.id),  # Store as text
+                str(interaction.user.id),
                 details
             )
 
@@ -273,7 +273,7 @@ class SetupCog(commands.Cog):
             await self.bot.db.execute(
                 audit_query,
                 'SYSTEM_SETUP',
-                str(interaction.user.id),  # Store as text
+                str(interaction.user.id),
                 details
             )
 
@@ -299,10 +299,10 @@ class SetupCog(commands.Cog):
             # Update division with role ID
             update_query = """
             UPDATE v3_divisions 
-            SET role_id = $1 
+            SET role_id = $1::text 
             WHERE name = $2
             """
-            await self.bot.db.execute(update_query, str(role.id), name)  # Store as text
+            await self.bot.db.execute(update_query, str(role.id), name)
 
     async def _sync_members(self, guild: discord.Guild):
         """Sync existing members"""
@@ -315,7 +315,7 @@ class SetupCog(commands.Cog):
             SELECT * FROM v3_members 
             WHERE discord_id = $1
             """
-            member = await self.bot.db.fetchrow(member_query, str(guild_member.id))  # Store as text
+            member = await self.bot.db.fetchrow(member_query, str(guild_member.id))
 
             if not member:
                 # Create new member without setting rank
@@ -326,7 +326,7 @@ class SetupCog(commands.Cog):
                 """
                 await self.bot.db.execute(
                     insert_query,
-                    str(guild_member.id),  # Store as text
+                    str(guild_member.id),
                     datetime.utcnow()
                 )
 
@@ -342,7 +342,7 @@ class SetupCog(commands.Cog):
                 await self.bot.db.execute(
                     audit_query,
                     'MEMBER_CREATE',
-                    str(self.bot.user.id),  # Store as text
+                    str(self.bot.user.id),
                     details
                 )
 
