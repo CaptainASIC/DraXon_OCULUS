@@ -127,11 +127,6 @@ class Applications(commands.Cog):
         logger.info("Applications cog initialized")
 
     @app_commands.command(name="draxon-position")
-    @app_commands.describe(
-        title="Position title",
-        division="Division for the position",
-        required_rank="Required rank for the position"
-    )
     async def position(self, interaction: discord.Interaction):
         """Create a new DraXon position"""
         try:
