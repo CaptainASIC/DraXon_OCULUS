@@ -19,6 +19,7 @@ aiofiles>=23.2.1
 certifi>=2023.7.22
 python-dateutil>=2.8.2
 pytz>=2023.3
+colorlog>=6.8.0  # Added for logging system
 
 # Development
 black>=23.7.0
