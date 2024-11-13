@@ -136,7 +136,18 @@ RSI_CONFIG = {
     'MAINTENANCE_START': "22:00",  # UTC
     'MAINTENANCE_DURATION': 3,     # Hours
     'BASE_URL': "https://robertsspaceindustries.com",
-    'USER_AGENT': f"DraXon_OCULUS/{APP_VERSION}"
+    'USER_AGENT': f"DraXon_OCULUS/{APP_VERSION}",
+    'HEADERS': {
+        'Accept': 'application/rss+xml,application/xml;q=0.9',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'User-Agent': f"DraXon_OCULUS/{APP_VERSION}"
+    },
+    'STATUS_HEADERS': {  # For status monitor's aiohttp requests
+        'Accept': 'text/html,application/xhtml+xml',
+        'User-Agent': f"DraXon_OCULUS/{APP_VERSION}"
+    }
 }
 
 # Cache Settings
@@ -157,7 +168,11 @@ DB_SETTINGS = {
     'MAX_OVERFLOW': 10,
     'POOL_TIMEOUT': 30,
     'POOL_RECYCLE': 1800,
-    'ECHO': False
+    'ECHO': False,
+    'STATEMENT_CACHE_SIZE': 0,  # Disable statement cache for better memory usage
+    'COMMAND_TIMEOUT': 30,      # Command timeout in seconds
+    'MIN_SIZE': 5,             # Minimum connections in pool
+    'MAX_SIZE': 20             # Maximum connections in pool
 }
 
 # Channel Permissions
