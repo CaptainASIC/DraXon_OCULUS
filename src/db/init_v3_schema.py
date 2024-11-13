@@ -12,31 +12,20 @@ async def init_v3_schema(settings):
         # Connect directly with asyncpg to run migrations
         conn = await asyncpg.connect(settings.database_url)
         
-        # Drop and recreate tables with correct types
+        # Create tables if they don't exist, preserve existing data
         await conn.execute("""
             BEGIN;
             
-            -- Backup existing data
-            CREATE TEMP TABLE divisions_backup AS 
-            SELECT name, description FROM v3_divisions;
-            
-            -- Drop existing tables
-            DROP TABLE IF EXISTS v3_audit_logs CASCADE;
-            DROP TABLE IF EXISTS v3_votes CASCADE;
-            DROP TABLE IF EXISTS v3_applications CASCADE;
-            DROP TABLE IF EXISTS v3_positions CASCADE;
-            DROP TABLE IF EXISTS v3_members CASCADE;
-            DROP TABLE IF EXISTS v3_divisions CASCADE;
-
-            -- Create tables with correct types
-            CREATE TABLE v3_divisions (
+            -- Create divisions table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_divisions (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(50) UNIQUE NOT NULL,
                 description TEXT,
                 role_id TEXT
             );
 
-            CREATE TABLE v3_members (
+            -- Create members table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_members (
                 id SERIAL PRIMARY KEY,
                 discord_id TEXT UNIQUE NOT NULL,
                 rank VARCHAR(3),
@@ -45,7 +34,8 @@ async def init_v3_schema(settings):
                 status VARCHAR(20) DEFAULT 'ACTIVE'
             );
 
-            CREATE TABLE v3_positions (
+            -- Create positions table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_positions (
                 id SERIAL PRIMARY KEY,
                 title VARCHAR(100) NOT NULL,
                 division_id INTEGER REFERENCES v3_divisions(id) NOT NULL,
@@ -54,7 +44,8 @@ async def init_v3_schema(settings):
                 holder_id INTEGER REFERENCES v3_members(id)
             );
 
-            CREATE TABLE v3_applications (
+            -- Create applications table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_applications (
                 id SERIAL PRIMARY KEY,
                 applicant_id INTEGER REFERENCES v3_members(id) NOT NULL,
                 position_id INTEGER REFERENCES v3_positions(id) NOT NULL,
@@ -66,7 +57,8 @@ async def init_v3_schema(settings):
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
 
-            CREATE TABLE v3_votes (
+            -- Create votes table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_votes (
                 id SERIAL PRIMARY KEY,
                 application_id INTEGER REFERENCES v3_applications(id) NOT NULL,
                 voter_id INTEGER REFERENCES v3_members(id) NOT NULL,
@@ -75,7 +67,8 @@ async def init_v3_schema(settings):
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
 
-            CREATE TABLE v3_audit_logs (
+            -- Create audit_logs table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_audit_logs (
                 id SERIAL PRIMARY KEY,
                 action_type VARCHAR(50) NOT NULL,
                 actor_id TEXT NOT NULL,
@@ -83,12 +76,6 @@ async def init_v3_schema(settings):
                 details JSONB,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
-
-            -- Restore division data
-            INSERT INTO v3_divisions (name, description)
-            SELECT name, description FROM divisions_backup;
-
-            DROP TABLE divisions_backup;
             
             COMMIT;
         """)
