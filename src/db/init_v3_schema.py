@@ -1,7 +1,7 @@
 """Schema initialization for DraXon OCULUS v3"""
 
 import logging
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.schema import CreateTable
 
 from src.db.v3_models import (
@@ -43,23 +43,25 @@ async def init_v3_schema(settings):
 
         # Insert default divisions
         from src.utils.constants import DIVISIONS
-        connection = engine.connect()
-        for name, description in DIVISIONS.items():
-            # Check if division exists
-            exists = connection.execute(
-                f"SELECT 1 FROM v3_divisions WHERE name = '{name}'"
-            ).fetchone()
-            
-            if not exists:
-                connection.execute(
-                    f"""
-                    INSERT INTO v3_divisions (name, description)
-                    VALUES ('{name}', '{description}')
-                    """
-                )
-                logger.info(f"Created division: {name}")
+        with engine.connect() as connection:
+            for name, description in DIVISIONS.items():
+                # Check if division exists
+                result = connection.execute(
+                    text("SELECT 1 FROM v3_divisions WHERE name = :name"),
+                    {"name": name}
+                ).fetchone()
+                
+                if not result:
+                    connection.execute(
+                        text("""
+                        INSERT INTO v3_divisions (name, description)
+                        VALUES (:name, :description)
+                        """),
+                        {"name": name, "description": description}
+                    )
+                    connection.commit()
+                    logger.info(f"Created division: {name}")
         
-        connection.close()
         logger.info("V3 schema initialization complete")
 
     except Exception as e:
