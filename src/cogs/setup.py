@@ -234,7 +234,7 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, $2::bigint, $3)
+            ) VALUES ($1, $2, $3)
             """
             details = json.dumps({
                 'channels': channels,
@@ -245,7 +245,7 @@ class SetupCog(commands.Cog):
             await self.bot.db.execute(
                 audit_query,
                 'SYSTEM_SETUP',
-                interaction.user.id,
+                str(interaction.user.id),  # Store as text
                 details
             )
 
@@ -264,7 +264,7 @@ class SetupCog(commands.Cog):
             audit_query = """
             INSERT INTO v3_audit_logs (
                 action_type, actor_id, details
-            ) VALUES ($1, $2::bigint, $3)
+            ) VALUES ($1, $2, $3)
             """
             details = json.dumps({
                 'status': 'error',
@@ -273,7 +273,7 @@ class SetupCog(commands.Cog):
             await self.bot.db.execute(
                 audit_query,
                 'SYSTEM_SETUP',
-                interaction.user.id,
+                str(interaction.user.id),  # Store as text
                 details
             )
 
@@ -299,10 +299,10 @@ class SetupCog(commands.Cog):
             # Update division with role ID
             update_query = """
             UPDATE v3_divisions 
-            SET role_id = $1::bigint 
+            SET role_id = $1 
             WHERE name = $2
             """
-            await self.bot.db.execute(update_query, role.id, name)
+            await self.bot.db.execute(update_query, str(role.id), name)  # Store as text
 
     async def _sync_members(self, guild: discord.Guild):
         """Sync existing members"""
@@ -313,20 +313,20 @@ class SetupCog(commands.Cog):
             # Check if member exists
             member_query = """
             SELECT * FROM v3_members 
-            WHERE discord_id = $1::bigint
+            WHERE discord_id = $1
             """
-            member = await self.bot.db.fetchrow(member_query, guild_member.id)
+            member = await self.bot.db.fetchrow(member_query, str(guild_member.id))  # Store as text
 
             if not member:
                 # Create new member without setting rank
                 insert_query = """
                 INSERT INTO v3_members (
                     discord_id, join_date
-                ) VALUES ($1::bigint, $2)
+                ) VALUES ($1, $2)
                 """
                 await self.bot.db.execute(
                     insert_query,
-                    guild_member.id,
+                    str(guild_member.id),  # Store as text
                     datetime.utcnow()
                 )
 
@@ -334,7 +334,7 @@ class SetupCog(commands.Cog):
                 audit_query = """
                 INSERT INTO v3_audit_logs (
                     action_type, actor_id, details
-                ) VALUES ($1, $2::bigint, $3)
+                ) VALUES ($1, $2, $3)
                 """
                 details = json.dumps({
                     'member_id': str(guild_member.id)
@@ -342,7 +342,7 @@ class SetupCog(commands.Cog):
                 await self.bot.db.execute(
                     audit_query,
                     'MEMBER_CREATE',
-                    self.bot.user.id,
+                    str(self.bot.user.id),  # Store as text
                     details
                 )
 
