@@ -17,7 +17,8 @@ from src.utils.constants import (
     DraXon_ROLES,
     STATUS_EMOJIS,
     ROLE_HIERARCHY,
-    COMMAND_HELP
+    COMMAND_HELP,
+    DIVISIONS
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -91,69 +92,53 @@ class CommandsCog(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="draxon-stats", 
-                         description="Display DraXon member statistics")
-    @app_commands.checks.has_any_role("Magnate", "Chairman")
-    async def draxon_stats(self, interaction: discord.Interaction):
-        """Command to display member statistics"""
+    @app_commands.command(name="draxon-division", description="Display DraXon division organization")
+    async def draxon_division(self, interaction: discord.Interaction):
+        """Display division organization structure"""
         try:
-            total_members = 0
-            role_counts = {}
-            
-            # Calculate member counts
-            for category, roles in DraXon_ROLES.items():
-                category_total = 0
-                for role_name in roles:
-                    role = discord.utils.get(interaction.guild.roles, name=role_name)
-                    if role:
-                        members = len([m for m in role.members if not m.bot])
-                        role_counts[role_name] = members
-                        category_total += members
-                role_counts[f"Total {category.title()}"] = category_total
-                total_members += category_total
-
-            # Get bot count
-            bot_role = discord.utils.get(interaction.guild.roles, name="Bots")
-            bot_count = len(bot_role.members) if bot_role else 0
-
-            # Create embed
             embed = discord.Embed(
-                title="📊 DraXon Member Statistics",
+                title="📊 DraXon Division Organization",
                 color=discord.Color.blue(),
                 timestamp=datetime.utcnow()
             )
 
-            # Add role counts by category
-            for category in DraXon_ROLES:
-                roles_in_category = DraXon_ROLES[category]
-                field_value = "\n".join(
-                    f"└ {role}: {role_counts.get(role, 0)}" 
-                    for role in roles_in_category
-                )
-                field_value += f"\n**Total {category.title()}: {role_counts.get(f'Total {category.title()}', 0)}**"
-                
+            for division_name in DIVISIONS.keys():
+                # Get division role
+                division_role = discord.utils.get(interaction.guild.roles, name=division_name)
+                if not division_role:
+                    continue
+
+                # Get Team Leaders in division
+                team_leaders = [
+                    member.display_name for member in division_role.members
+                    if discord.utils.get(member.roles, name="Team Leader")
+                ]
+
+                # Count Employees in division
+                employee_count = len([
+                    member for member in division_role.members
+                    if discord.utils.get(member.roles, name="Employee")
+                ])
+
+                # Format division info
+                division_info = ""
+                if team_leaders:
+                    division_info += f"**Team Leaders:** {', '.join(team_leaders)}\n"
+                division_info += f"**Employees:** {employee_count}"
+
                 embed.add_field(
-                    name=f"{category.title()} Roles",
-                    value=field_value,
+                    name=division_name,
+                    value=division_info,
                     inline=False
                 )
 
-            # Add totals
-            embed.add_field(
-                name="Overall Statistics",
-                value=f"👥 Total Human Members: {total_members}\n"
-                      f"🤖 Total Automated Systems: {bot_count}",
-                inline=False
-            )
-
             embed.set_footer(text=f"DraXon OCULUS v{APP_VERSION}")
-
             await interaction.response.send_message(embed=embed, ephemeral=True)
-            
+
         except Exception as e:
-            logger.error(f"Error in stats command: {e}")
+            logger.error(f"Error in division command: {e}")
             await interaction.response.send_message(
-                "❌ An error occurred while fetching statistics.",
+                "❌ An error occurred while fetching division information.",
                 ephemeral=True
             )
 
