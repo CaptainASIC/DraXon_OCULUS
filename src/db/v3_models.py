@@ -26,29 +26,16 @@ class DraXonMember(Base):
     join_date = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String(20), default='ACTIVE')
 
-class DraXonPosition(Base):
-    """Position model"""
-    __tablename__ = 'v3_positions'
-
-    id = Column(Integer, primary_key=True)
-    title = Column(String(100), nullable=False)
-    division_id = Column(Integer, ForeignKey('v3_divisions.id'), nullable=False)
-    required_rank = Column(String(3), nullable=False)  # EXE, TL, EMP
-    status = Column(String(20), default='OPEN')
-    holder_id = Column(Integer, ForeignKey('v3_members.id'))
-
 class DraXonApplication(Base):
     """Application model"""
     __tablename__ = 'v3_applications'
 
     id = Column(Integer, primary_key=True)
     applicant_id = Column(Integer, ForeignKey('v3_members.id'), nullable=False)
-    position_id = Column(Integer, ForeignKey('v3_positions.id'), nullable=False)
+    division_name = Column(String(50), nullable=False)
     thread_id = Column(Text, nullable=False)  # Discord thread ID as text
     status = Column(String(20), default='PENDING')
-    previous_experience = Column(Text)
-    position_statement = Column(Text)
-    additional_info = Column(Text)
+    statement = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class DraXonVote(Base):

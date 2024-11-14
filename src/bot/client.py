@@ -124,7 +124,6 @@ class DraXonOCULUSBot(commands.Bot):
                 
                 # V3 Features
                 'src.cogs.applications',  # Application system
-                'src.cogs.positions',     # Position management
                 'src.cogs.divisions',     # Division management
                 
                 # RSI Integration
