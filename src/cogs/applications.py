@@ -24,14 +24,18 @@ class ApplyModal(discord.ui.Modal, title="Apply for Position"):
         self.bot = bot
         self.positions = positions
         
-        # Create dropdown-style input for position
-        position_list = "\n".join(
-            f"- {pos['title']} ({pos['division_name']})" 
+        # Create shorter position list for placeholder
+        position_list = "Available: " + ", ".join(
+            f"{pos['title']}" 
             for pos in positions
         )
+        # Ensure it doesn't exceed 100 characters
+        if len(position_list) > 97:  # 97 to leave room for "..."
+            position_list = position_list[:97] + "..."
+            
         self.position = discord.ui.TextInput(
             label="Position",
-            placeholder=f"Choose from available positions:\n{position_list}",
+            placeholder=position_list,
             required=True,
             max_length=100
         )
@@ -48,24 +52,20 @@ class ApplyModal(discord.ui.Modal, title="Apply for Position"):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            # Validate position
-            position_titles = [
-                f"{pos['title']} ({pos['division_name']})" 
-                for pos in self.positions
-            ]
-            if self.position.value not in position_titles:
+            # Get selected position by title only
+            selected_position = None
+            for pos in self.positions:
+                if pos['title'].lower() == self.position.value.lower():
+                    selected_position = pos
+                    break
+            
+            if not selected_position:
                 await interaction.response.send_message(
-                    f"❌ Invalid position. Must be one of:\n{chr(10).join(position_titles)}",
+                    f"❌ Invalid position. Must be one of: {', '.join(p['title'] for p in self.positions)}",
                     ephemeral=True
                 )
                 return
                 
-            # Get selected position
-            selected_position = next(
-                p for p in self.positions 
-                if f"{p['title']} ({p['division_name']})" == self.position.value
-            )
-            
             # Get member ID from discord ID
             member_query = """
             SELECT id FROM v3_members
