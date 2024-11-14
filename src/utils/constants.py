@@ -1,7 +1,7 @@
 """Constants for DraXon OCULUS"""
 
 # Version info
-APP_VERSION = "3.1.1"
+APP_VERSION = "3.1.2"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
@@ -269,8 +269,38 @@ Division: {division}
 Required Voters:
 {voters}
 """,
-        'APPROVED': "✅ Application for {position} has been approved!",
-        'REJECTED': "❌ Application for {position} has been rejected.",
+        'VOTE_UPDATE': """
+📊 Vote Update:
+{voter} has voted {vote}
+Current Status: {current}/{required} votes
+""",
+        'APPROVED': """
+✅ Application for {position} has been approved!
+Congratulations {applicant}! You are now a Team Leader in the {division} division.
+""",
+        'REJECTED': """
+❌ Application for {position} has been rejected.
+We encourage you to continue developing your skills and consider applying again in the future.
+""",
         'EXPIRED': "⏰ Application for {position} has expired due to timeout."
     }
+}
+
+# Command Help
+COMMAND_HELP = {
+    'all': [
+        ('/oculus-about', 'Display information about OCULUS and available commands'),
+        ('/draxon-link', 'Link your RSI account with Discord')
+    ],
+    'staff': [
+        ('/draxon-apply', 'Apply for a Team Leader position')
+    ],
+    'management': [
+        ('/draxon-promote', 'Promote a member'),
+        ('/draxon-demote', 'Demote a member')
+    ],
+    'leadership': [
+        ('/draxon-setup', 'Configure OCULUS settings'),
+        ('/draxon-backup', 'Create a server backup')
+    ]
 }
