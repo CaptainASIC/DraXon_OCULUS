@@ -12,14 +12,9 @@ async def init_v3_schema(settings):
         # Connect directly with asyncpg to run migrations
         conn = await asyncpg.connect(settings.database_url)
         
-        # Drop and recreate tables for v3.1.0 update
+        # Create tables if they don't exist, preserve existing data
         await conn.execute("""
             BEGIN;
-            
-            -- Drop existing tables that need schema changes
-            DROP TABLE IF EXISTS v3_votes CASCADE;
-            DROP TABLE IF EXISTS v3_applications CASCADE;
-            DROP TABLE IF EXISTS v3_positions CASCADE;
             
             -- Create divisions table if it doesn't exist
             CREATE TABLE IF NOT EXISTS v3_divisions (
@@ -39,8 +34,8 @@ async def init_v3_schema(settings):
                 status VARCHAR(20) DEFAULT 'ACTIVE'
             );
 
-            -- Create applications table with new schema
-            CREATE TABLE v3_applications (
+            -- Create applications table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_applications (
                 id SERIAL PRIMARY KEY,
                 applicant_id INTEGER REFERENCES v3_members(id) NOT NULL,
                 division_name VARCHAR(50) NOT NULL,
@@ -50,8 +45,8 @@ async def init_v3_schema(settings):
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
 
-            -- Create votes table
-            CREATE TABLE v3_votes (
+            -- Create votes table if it doesn't exist
+            CREATE TABLE IF NOT EXISTS v3_votes (
                 id SERIAL PRIMARY KEY,
                 application_id INTEGER REFERENCES v3_applications(id) NOT NULL,
                 voter_id INTEGER REFERENCES v3_members(id) NOT NULL,
@@ -86,7 +81,7 @@ async def init_v3_schema(settings):
             )
         
         await conn.close()
-        logger.info("V3.1.0 schema initialization complete")
+        logger.info("V3 schema initialization complete")
 
     except Exception as e:
         logger.error(f"Error initializing v3 schema: {e}")
