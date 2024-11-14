@@ -23,7 +23,6 @@ from src.utils.constants import (
 )
 from src.db.v3_models import (
     DraXonDivision,
-    DraXonPosition,
     DraXonMember,
     DraXonApplication,
     DraXonVote,
@@ -166,7 +165,6 @@ class DraXonOCULUSBot(commands.Bot):
             tables = [
                 DraXonDivision.__table__,
                 DraXonMember.__table__,
-                DraXonPosition.__table__,
                 DraXonApplication.__table__,
                 DraXonVote.__table__,
                 DraXonAuditLog.__table__
