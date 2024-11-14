@@ -1,7 +1,7 @@
 """Constants for DraXon OCULUS"""
 
 # Version info
-APP_VERSION = "3.1.2"
+APP_VERSION = "3.1.3"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
@@ -226,11 +226,11 @@ DB_DIR = BASE_DIR / "data"
 
 # Division configurations
 DIVISIONS = {
-    'Logistics': 'Transportation and supply management',
-    'Resources': 'Mining, salvaging, and production',
-    'Tactical': 'Legal mercenary operations',
-    'HR': 'Recruitment and personnel',
-    'SpecOps': 'Covert operations'
+    'Logistics Division': 'Transportation and supply management',
+    'Resources Division': 'Mining, salvaging, and production',
+    'Tactical Division': 'Legal mercenary operations',
+    'HR Division': 'Recruitment and personnel',
+    'SpecOps Division': 'Covert operations'
 }
 
 # Rank codes
