@@ -1,7 +1,7 @@
 """Constants for DraXon OCULUS"""
 
 # Version info
-APP_VERSION = "3.1.3"
+APP_VERSION = "3.1.4"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
@@ -282,7 +282,14 @@ Congratulations {applicant}! You are now a Team Leader in the {division} divisio
 ❌ Application for {position} has been rejected.
 We encourage you to continue developing your skills and consider applying again in the future.
 """,
-        'EXPIRED': "⏰ Application for {position} has expired due to timeout."
+        'EXPIRED': "⏰ Application for {position} has expired due to timeout.",
+        'ANNOUNCEMENT': """
+🎉 **New Team Leader Announcement**
+
+Please join us in congratulating {applicant} on becoming a Team Leader in the {division}!
+
+Their dedication and skills will be a great addition to our leadership team. 🚀
+"""
     }
 }
 

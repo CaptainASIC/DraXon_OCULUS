@@ -12,8 +12,7 @@ from src.utils.constants import (
     V3_SYSTEM_MESSAGES,
     APPLICATION_SETTINGS,
     DraXon_ROLES,
-    DIVISIONS,
-    COMMAND_HELP
+    DIVISIONS
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -153,35 +152,52 @@ class VoteView(discord.ui.View):
                 await interaction.followup.send("❌ Could not find applicant member.")
                 return
 
-            # Get current roles
-            current_roles = [role.name for role in applicant.roles]
+            # Remove Employee role if they have it
+            employee_role = discord.utils.get(interaction.guild.roles, name="Employee")
+            if employee_role and employee_role in applicant.roles:
+                await applicant.remove_roles(employee_role)
+                logger.info(f"Removed Employee role from {applicant.name}")
 
-            # Only remove Employee role if they're not already Team Leader or higher
-            if not any(role in current_roles for role in 
-                      DraXon_ROLES['leadership'] + 
-                      DraXon_ROLES['management']):
-                # Remove Employee role if they have it
-                employee_role = discord.utils.get(interaction.guild.roles, name="Employee")
-                if employee_role and employee_role in applicant.roles:
-                    await applicant.remove_roles(employee_role)
+            # Always add Team Leader role regardless of current roles
+            team_leader_role = discord.utils.get(interaction.guild.roles, name="Team Leader")
+            if team_leader_role:
+                await applicant.add_roles(team_leader_role)
+                logger.info(f"Added Team Leader role to {applicant.name}")
+            else:
+                logger.error("Could not find Team Leader role")
 
-                # Add Team Leader role
-                team_leader_role = discord.utils.get(interaction.guild.roles, name="Team Leader")
-                if team_leader_role:
-                    await applicant.add_roles(team_leader_role)
-
-            # Add division role
-            division_role = discord.utils.get(interaction.guild.roles, name=application['division_name'])
+            # Add division role - note that division_name already includes "Division"
+            division_role = discord.utils.get(
+                interaction.guild.roles, 
+                name=application['division_name']
+            )
             if division_role:
                 await applicant.add_roles(division_role)
+                logger.info(f"Added {division_role.name} to {applicant.name}")
+            else:
+                logger.error(f"Could not find role: {application['division_name']}")
 
-            # Send approval message
+            # Send approval message in thread
             approval_msg = V3_SYSTEM_MESSAGES['APPLICATION']['APPROVED'].format(
                 position=f"{application['division_name']} Team Leader",
                 applicant=applicant.mention,
                 division=application['division_name']
             )
             await interaction.followup.send(approval_msg)
+
+            # Send announcement in lobby
+            lobby_channel = discord.utils.get(
+                interaction.guild.channels,
+                name='lobby'
+            )
+            if lobby_channel:
+                announcement = V3_SYSTEM_MESSAGES['APPLICATION']['ANNOUNCEMENT'].format(
+                    applicant=applicant.mention,
+                    division=application['division_name']
+                )
+                await lobby_channel.send(announcement)
+            else:
+                logger.error("Could not find lobby channel")
 
             # Disable the voting buttons
             self.approve.disabled = True
@@ -228,7 +244,7 @@ class DivisionSelect(discord.ui.Select):
                 description=desc[:100]  # Discord limits description to 100 chars
             )
             for division, desc in DIVISIONS.items()
-            if division != 'HR'  # Exclude HR from options
+            if not division.startswith('HR')  # Exclude HR Division
         ]
         super().__init__(
             placeholder="Select a division",
@@ -412,49 +428,6 @@ class Applications(commands.Cog):
             logger.error(f"Error in apply command: {e}")
             await interaction.response.send_message(
                 "❌ An error occurred while preparing the application form.",
-                ephemeral=True
-            )
-
-    @app_commands.command(name="oculus-about")
-    async def about(self, interaction: discord.Interaction):
-        """Display information about OCULUS and available commands"""
-        try:
-            # Get user's roles
-            member_roles = [role.name for role in interaction.user.roles]
-            
-            # Build available commands list based on roles
-            commands = COMMAND_HELP['all'].copy()  # Everyone gets these
-            
-            if any(role in member_roles for role in DraXon_ROLES['staff']):
-                commands.extend(COMMAND_HELP['staff'])
-            
-            if any(role in member_roles for role in DraXon_ROLES['management']):
-                commands.extend(COMMAND_HELP['management'])
-            
-            if any(role in member_roles for role in DraXon_ROLES['leadership']):
-                commands.extend(COMMAND_HELP['leadership'])
-            
-            # Format embed
-            embed = discord.Embed(
-                title="DraXon OCULUS",
-                description=f"Version {APP_VERSION}\n{BOT_DESCRIPTION}",
-                color=discord.Color.blue()
-            )
-            
-            # Add commands field
-            commands_text = "\n".join(f"`{cmd}` - {desc}" for cmd, desc in commands)
-            embed.add_field(
-                name="Available Commands",
-                value=commands_text,
-                inline=False
-            )
-            
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-        except Exception as e:
-            logger.error(f"Error in about command: {e}")
-            await interaction.response.send_message(
-                "❌ An error occurred while displaying bot information.",
                 ephemeral=True
             )
 
