@@ -17,8 +17,7 @@ from src.utils.constants import (
     DraXon_ROLES,
     STATUS_EMOJIS,
     ROLE_HIERARCHY,
-    COMMAND_HELP,
-    DIVISIONS
+    COMMAND_HELP
 )
 
 logger = logging.getLogger('DraXon_OCULUS')
@@ -89,56 +88,6 @@ class CommandsCog(commands.Cog):
             logger.error(f"Error in about command: {e}")
             await interaction.response.send_message(
                 "❌ An error occurred while displaying bot information.",
-                ephemeral=True
-            )
-
-    @app_commands.command(name="draxon-division", description="Display DraXon division organization")
-    async def draxon_division(self, interaction: discord.Interaction):
-        """Display division organization structure"""
-        try:
-            embed = discord.Embed(
-                title="📊 DraXon Division Organization",
-                color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
-            )
-
-            for division_name in DIVISIONS.keys():
-                # Get division role
-                division_role = discord.utils.get(interaction.guild.roles, name=division_name)
-                if not division_role:
-                    continue
-
-                # Get Team Leaders in division
-                team_leaders = [
-                    member.display_name for member in division_role.members
-                    if discord.utils.get(member.roles, name="Team Leader")
-                ]
-
-                # Count Employees in division
-                employee_count = len([
-                    member for member in division_role.members
-                    if discord.utils.get(member.roles, name="Employee")
-                ])
-
-                # Format division info
-                division_info = ""
-                if team_leaders:
-                    division_info += f"**Team Leaders:** {', '.join(team_leaders)}\n"
-                division_info += f"**Employees:** {employee_count}"
-
-                embed.add_field(
-                    name=division_name,
-                    value=division_info,
-                    inline=False
-                )
-
-            embed.set_footer(text=f"DraXon OCULUS v{APP_VERSION}")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-        except Exception as e:
-            logger.error(f"Error in division command: {e}")
-            await interaction.response.send_message(
-                "❌ An error occurred while fetching division information.",
                 ephemeral=True
             )
 
