@@ -34,26 +34,14 @@ async def init_v3_schema(settings):
                 status VARCHAR(20) DEFAULT 'ACTIVE'
             );
 
-            -- Create positions table if it doesn't exist
-            CREATE TABLE IF NOT EXISTS v3_positions (
-                id SERIAL PRIMARY KEY,
-                title VARCHAR(100) NOT NULL,
-                division_id INTEGER REFERENCES v3_divisions(id) NOT NULL,
-                required_rank VARCHAR(3) NOT NULL,
-                status VARCHAR(20) DEFAULT 'OPEN',
-                holder_id INTEGER REFERENCES v3_members(id)
-            );
-
             -- Create applications table if it doesn't exist
             CREATE TABLE IF NOT EXISTS v3_applications (
                 id SERIAL PRIMARY KEY,
                 applicant_id INTEGER REFERENCES v3_members(id) NOT NULL,
-                position_id INTEGER REFERENCES v3_positions(id) NOT NULL,
+                division_name VARCHAR(50) NOT NULL,
                 thread_id TEXT NOT NULL,
                 status VARCHAR(20) DEFAULT 'PENDING',
-                previous_experience TEXT,
-                position_statement TEXT,
-                additional_info TEXT,
+                statement TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
 
