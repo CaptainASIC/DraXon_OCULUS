@@ -16,6 +16,11 @@ logger = logging.getLogger('DraXon_OCULUS')
 class RSIScraper:
     """Handles direct RSI website scraping"""
     
+    # Match the working API's URL patterns
+    __url_organization = "https://robertsspaceindustries.com/orgs/{0}"
+    __url_search_orgs = "https://robertsspaceindustries.com/api/orgs/getOrgs"
+    __url_organization_members = "https://robertsspaceindustries.com/api/orgs/getOrgMembers"
+    
     def __init__(self, session, redis):
         """Initialize the scraper
         
@@ -193,8 +198,8 @@ class RSIScraper:
                 return json.loads(cached)
 
             # Make request using the direct URL pattern
-            url = f"{RSI_CONFIG['BASE_URL']}/orgs/{sid}"
-            response = self._make_request(url)
+            url = self.__url_organization.format(sid)
+            response = self._make_request(url, "get")
             if not response:
                 return None
             if response.status_code == 404:
@@ -202,6 +207,7 @@ class RSIScraper:
             if response.status_code != 200:
                 return None
 
+            # get html contents
             tree = html.fromstring(response.content)
 
             # Extract organization info
@@ -218,45 +224,60 @@ class RSIScraper:
                 }
             }
 
-            # Get org name
-            name = tree.xpath('//*[@id="organization"]//h1/text()')
-            if name:
-                result["name"] = name[0].strip('/ ')
+            # Extract basic info
+            for v in tree.xpath('//*[@id="organization"]//h1/text()'):
+                result["name"] = v.strip('/ ')
+                break
 
-            # Get logo
-            logo = tree.xpath('//*[contains(@class, "logo") and contains(@class, "noshadow")]/img/@src')
-            if logo:
-                result["logo"] = urljoin(RSI_CONFIG['BASE_URL'], logo[0])
+            for v in tree.xpath('//*[contains(@class, "logo") and contains(@class, "noshadow")]/img/@src'):
+                result["logo"] = urljoin(RSI_CONFIG['BASE_URL'], v)
+                break
 
-            # Get banner
-            banner = tree.xpath('//*[contains(@class, "banner")]/img/@src')
-            if banner:
-                result["banner"] = urljoin(RSI_CONFIG['BASE_URL'], banner[0])
+            for v in tree.xpath('//*[contains(@class, "banner")]/img/@src'):
+                result["banner"] = urljoin(RSI_CONFIG['BASE_URL'], v)
+                break
 
-            # Get focus info
-            primary_img = tree.xpath('//*[contains(@class, "primary") and contains(@class, "tooltip-wrap")]/img/@src')
-            if primary_img:
-                result["focus"]["primary"]["image"] = urljoin(RSI_CONFIG['BASE_URL'], primary_img[0])
+            # Extract focus info
+            for v in tree.xpath('//*[contains(@class, "primary") and contains(@class, "tooltip-wrap")]/img/@src'):
+                result["focus"]["primary"]["image"] = urljoin(RSI_CONFIG['BASE_URL'], v)
+                break
+            for v in tree.xpath('//*[contains(@class, "primary") and contains(@class, "tooltip-wrap")]/img/@alt'):
+                result["focus"]["primary"]["name"] = v.strip()
+                break
+
+            for v in tree.xpath('//*[contains(@class, "secondary") and contains(@class, "tooltip-wrap")]/img/@src'):
+                result["focus"]["secondary"]["image"] = urljoin(RSI_CONFIG['BASE_URL'], v)
+                break
+            for v in tree.xpath('//*[contains(@class, "secondary") and contains(@class, "tooltip-wrap")]/img/@alt'):
+                result["focus"]["secondary"]["name"] = v.strip()
+                break
+
+            # Get member count using the search API
+            search_data = {
+                "activity": [],
+                "commitment": [],
+                "language": [],
+                "model": [],
+                "pagesize": 12,
+                "recruiting": [],
+                "roleplay": [],
+                "search": sid,
+                "page": 1,
+                "size": [],
+                "sort": ""
+            }
             
-            primary_name = tree.xpath('//*[contains(@class, "primary") and contains(@class, "tooltip-wrap")]/img/@alt')
-            if primary_name:
-                result["focus"]["primary"]["name"] = primary_name[0].strip()
-
-            secondary_img = tree.xpath('//*[contains(@class, "secondary") and contains(@class, "tooltip-wrap")]/img/@src')
-            if secondary_img:
-                result["focus"]["secondary"]["image"] = urljoin(RSI_CONFIG['BASE_URL'], secondary_img[0])
-            
-            secondary_name = tree.xpath('//*[contains(@class, "secondary") and contains(@class, "tooltip-wrap")]/img/@alt')
-            if secondary_name:
-                result["focus"]["secondary"]["name"] = secondary_name[0].strip()
-
-            # Get member count
-            members = tree.xpath('//*[contains(@class, "member-count")]/text()')
-            if members:
-                try:
-                    result["members"] = int(members[0].strip())
-                except:
-                    pass
+            search_response = self._make_request(self.__url_search_orgs, "post", search_data)
+            if search_response and search_response.status_code == 200:
+                search_data = search_response.json()
+                if search_data.get('success') == 1:
+                    search_tree = html.fromstring(search_data['data']['html'])
+                    for org_data in search_tree.xpath('//*[contains(@class, "org-cell")]'):
+                        org_sid = org_data.xpath('.//*[@class="symbol"]/text()')
+                        if org_sid and org_sid[0].strip() == sid:
+                            members = org_data.xpath('.//*[contains(@class, "value")]/text()')[-1]
+                            result["members"] = int(members)
+                            break
 
             # Cache the result
             await self.redis.set(
@@ -284,12 +305,14 @@ class RSIScraper:
             json_data = {
                 "symbol": sid,
                 "search": "",
-                "pagesize": 32,
+                "pagesize": 32,  # Match the working API's page size
                 "page": page
             }
 
-            response = self._make_request(f"{RSI_CONFIG['BASE_URL']}/api/orgs/getOrgMembers", "post", json_data)
-            if not response or response.status_code != 200:
+            response = self._make_request(self.__url_organization_members, "post", json_data)
+            if not response:
+                return []
+            if response.status_code != 200:
                 return []
 
             data = response.json()
@@ -306,7 +329,7 @@ class RSIScraper:
             tree = html.fromstring(data['data']['html'])
             result = []
 
-            # Process each member
+            # Match the working API's member parsing logic
             index = 1
             for _ in tree.xpath("//*[contains(@class, 'member-item')]"):
                 try:
