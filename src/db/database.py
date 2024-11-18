@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from src.utils.constants import DB_SETTINGS, CACHE_SETTINGS
 from src.config.settings import get_settings
 from .init_v3_schema import init_v3_schema
+from .init_rsi_schema import init_rsi_schema
 
 logger = logging.getLogger('DraXon_OCULUS')
 
@@ -27,10 +28,13 @@ async def init_db(database_url: str) -> asyncpg.Pool:
         if not pool:
             raise Exception("Failed to create database pool")
         
-        # Initialize v3 schema
+        # Initialize schemas
         settings = get_settings()
         await init_v3_schema(settings)
         logger.info("V3 schema initialized successfully")
+        
+        await init_rsi_schema(settings)
+        logger.info("RSI schema initialized successfully")
             
         logger.info("Database pool initialized successfully")
         return pool
