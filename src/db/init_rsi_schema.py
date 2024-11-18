@@ -1,6 +1,7 @@
 """Schema initialization for RSI integration tables"""
 
 import logging
+import asyncpg
 from sqlalchemy import create_engine, inspect, text
 
 logger = logging.getLogger('DraXon_OCULUS')
