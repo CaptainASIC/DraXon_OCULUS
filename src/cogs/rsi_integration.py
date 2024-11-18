@@ -1,3 +1,5 @@
+"""RSI account integration for DraXon OCULUS"""
+
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
@@ -22,6 +24,61 @@ from src.utils.rsi_scraper import RSIScraper
 from src.config.settings import get_settings
 
 logger = logging.getLogger('DraXon_OCULUS')
+
+class UpdateAccountView(discord.ui.View):
+    """View for updating linked account"""
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Update Handle", style=discord.ButtonStyle.primary)
+    async def update_handle(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Show modal to update RSI handle"""
+        modal = LinkAccountModal()
+        modal.cog = self.cog
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Sync Existing", style=discord.ButtonStyle.secondary)
+    async def sync_existing(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Sync existing linked account"""
+        await interaction.response.defer(ephemeral=True)
+        try:
+            async with self.cog.bot.db.acquire() as conn:
+                existing = await conn.fetchrow(
+                    'SELECT handle FROM rsi_members WHERE discord_id = $1',
+                    str(interaction.user.id)
+                )
+                
+                if not existing:
+                    await interaction.followup.send(
+                        "❌ No linked account found to sync.",
+                        ephemeral=True
+                    )
+                    return
+
+                # Get fresh user info
+                user_info = await self.cog.get_user_info(existing['handle'])
+                if not user_info:
+                    await interaction.followup.send(
+                        "❌ Failed to fetch updated account information.",
+                        ephemeral=True
+                    )
+                    return
+
+                # Process the account link
+                success = await self.cog.process_account_link(interaction, user_info)
+                if not success:
+                    await interaction.followup.send(
+                        "❌ Failed to sync account. Please try again later.",
+                        ephemeral=True
+                    )
+
+        except Exception as e:
+            logger.error(f"Error syncing account: {e}")
+            await interaction.followup.send(
+                "❌ An error occurred while syncing your account.",
+                ephemeral=True
+            )
 
 class LinkAccountModal(discord.ui.Modal, title='Link RSI Account'):
     def __init__(self):
@@ -291,9 +348,10 @@ class RSIIntegrationCog(commands.Cog):
                 )
                 
                 if existing:
+                    view = UpdateAccountView(self)
                     await interaction.response.send_message(
-                        "⚠️ You already have a linked RSI account. "
-                        "Would you like to update it?",
+                        "⚠️ You already have a linked RSI account. Would you like to update your handle or sync your existing account?",
+                        view=view,
                         ephemeral=True
                     )
                     return
@@ -307,319 +365,6 @@ class RSIIntegrationCog(commands.Cog):
             logger.error(f"Error in link_account command: {e}")
             await interaction.response.send_message(
                 "❌ An error occurred while processing your request.",
-                ephemeral=True
-            )
-
-    @app_commands.command(
-        name="draxon-org",
-        description="Display organization member list"
-    )
-    @app_commands.checks.has_role("Magnate")
-    async def org_members(self, interaction: discord.Interaction):
-        """Command to display organization members"""
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            # Get org info first
-            org_info = await self.get_org_info()
-            if not org_info:
-                await interaction.followup.send(
-                    "❌ Failed to fetch organization data.",
-                    ephemeral=True
-                )
-                return
-
-            # Get members
-            members = await self.get_org_members()
-            if not members:
-                await interaction.followup.send(
-                    "❌ Failed to fetch organization members.",
-                    ephemeral=True
-                )
-                return
-
-            # Create member table
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            lines = [
-                "Discord ID | Discord Name | RSI Display | RSI Handle | "
-                "Stars | Status | Rank | Roles"
-            ]
-            lines.append("-" * 140)
-
-            # Sort by stars (descending)
-            members.sort(key=lambda x: x.get('stars', 0), reverse=True)
-
-            async with self.bot.db.acquire() as conn:
-                # Convert async generator to list
-                db_members = await conn.fetch('SELECT handle, discord_id, org_status FROM rsi_members')
-                db_members_dict = {
-                    m['handle'].lower(): {
-                        'discord_id': m['discord_id'],
-                        'org_status': m['org_status']
-                    } for m in db_members
-                }
-
-                for member in members:
-                    handle = member['handle']
-                    db_data = db_members_dict.get(handle.lower(), {})
-                    discord_id = db_data.get('discord_id', 'N/A')
-                    org_status = db_data.get('org_status', 'Unknown')
-
-                    discord_member = None
-                    if discord_id != 'N/A':
-                        discord_member = interaction.guild.get_member(int(discord_id))
-
-                    discord_name = discord_member.name if discord_member else "N/A"
-                    roles_str = ", ".join(member.get('roles', []))
-                    
-                    lines.append(
-                        f"{discord_id} | {discord_name} | {member['display']} | "
-                        f"{handle} | {member.get('stars', 0)} | {org_status} | "
-                        f"{member.get('rank', 'Unknown')} | {roles_str}"
-                    )
-
-                # Create and send file
-                file = discord.File(
-                    io.StringIO('\n'.join(lines)),
-                    filename=f'draxon_oculus_members_{timestamp}.txt'
-                )
-
-                # Create summary embed
-                embed = discord.Embed(
-                    title=f"📊 {org_info['name']} Member Summary",
-                    description=f"Organization SID: {org_info['sid']}\n"
-                               f"Total Members: {org_info['members']}\n"
-                               f"Primary Focus: {org_info['focus']['primary']['name']}\n"
-                               f"Secondary Focus: {org_info['focus']['secondary']['name']}",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.utcnow()
-                )
-
-                if org_info.get('banner'):
-                    embed.set_image(url=org_info['banner'])
-
-                # Add statistics
-                total_members = len(members)
-                linked_members = len([m for m in members if m['handle'].lower() in db_members_dict])
-
-                embed.add_field(
-                    name="Member Statistics",
-                    value=f"👥 Total Members: {total_members}\n"
-                          f"🔗 Linked Members: {linked_members}\n"
-                          f"❌ Unlinked Members: {total_members - linked_members}",
-                    inline=False
-                )
-
-                # Add rank distribution
-                rank_counts = {}
-                for member in members:
-                    rank = member.get('rank', 'Unknown')
-                    rank_counts[rank] = rank_counts.get(rank, 0) + 1
-
-                rank_info = "\n".join(
-                    f"• {rank}: {count}" 
-                    for rank, count in sorted(rank_counts.items())
-                )
-                embed.add_field(
-                    name="Rank Distribution",
-                    value=rank_info,
-                    inline=False
-                )
-
-                await interaction.followup.send(
-                    embed=embed,
-                    file=file,
-                    ephemeral=True
-                )
-
-        except Exception as e:
-            logger.error(f"Error in org_members command: {e}")
-            await interaction.followup.send(
-                "❌ An error occurred while fetching member data.",
-                ephemeral=True
-            )
-
-    @app_commands.command(
-        name="draxon-compare",
-        description="Compare Discord members with RSI org members"
-    )
-    @app_commands.checks.has_role("Magnate")
-    async def compare_members(self, interaction: discord.Interaction):
-        """Compare Discord and Org members"""
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            # Fetch org members
-            org_members = await self.get_org_members()
-            if not org_members:
-                await interaction.followup.send(
-                    "❌ Failed to fetch organization members.",
-                    ephemeral=True
-                )
-                return
-
-            # Create comparison file
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            lines = [
-                "Status | Discord ID | Discord Name | RSI Handle | RSI Display | "
-                "Stars | Org Status | Last Updated"
-            ]
-            lines.append("-" * 140)
-
-            org_by_handle = {m['handle'].lower(): m for m in org_members}
-            
-            async with self.bot.db.acquire() as conn:
-                # Get all member data at once
-                db_members = await conn.fetch('SELECT * FROM rsi_members')
-                db_members_by_id = {m['discord_id']: m for m in db_members}
-                
-                # Get total linked count
-                total_linked = len(db_members)
-                
-                # Process Discord members
-                for member in interaction.guild.members:
-                    if member.bot:
-                        continue
-                        
-                    member_data = db_members_by_id.get(str(member.id))
-                    
-                    if member_data:
-                        handle = member_data['handle']
-                        org_member = org_by_handle.get(handle.lower())
-                        
-                        status = (
-                            COMPARE_STATUS['match'] if org_member 
-                            else COMPARE_STATUS['missing']
-                        )
-                        display = (
-                            org_member['display'] if org_member 
-                            else member_data['display_name']
-                        )
-                        stars = (
-                            str(org_member['stars']) if org_member 
-                            else str(member_data['org_stars'])
-                        )
-                        org_status = member_data['org_status']
-                        last_updated = member_data['last_updated'].strftime("%Y-%m-%d %H:%M")
-                    else:
-                        status = COMPARE_STATUS['missing']
-                        handle = 'N/A'
-                        display = 'N/A'
-                        stars = 'N/A'
-                        org_status = 'N/A'
-                        last_updated = 'Never'
-                    
-                    lines.append(
-                        f"{status} | {member.id} | {member.name} | {handle} | "
-                        f"{display} | {stars} | {org_status} | {last_updated}"
-                    )
-
-                # Create comparison file
-                file = discord.File(
-                    io.StringIO('\n'.join(lines)),
-                    filename=f'draxon_oculus_comparison_{timestamp}.txt'
-                )
-
-                # Create summary embed
-                embed = discord.Embed(
-                    title="🔍 Member Comparison Results",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.utcnow()
-                )
-
-                # Calculate statistics
-                total_discord = len([m for m in interaction.guild.members if not m.bot])
-                total_org = len(org_members)
-                
-                discord_handles = {m['handle'].lower() for m in db_members if m['handle']}
-                org_handles = {m['handle'].lower() for m in org_members}
-                
-                missing_from_discord = len(org_handles - discord_handles)
-                missing_from_org = len(discord_handles - org_handles)
-
-                # Add statistics to embed
-                embed.add_field(
-                    name="Member Counts",
-                    value=f"👥 Discord Members: {total_discord}\n"
-                          f"🔗 Linked Accounts: {total_linked}\n"
-                          f"🏢 Organization Members: {total_org}",
-                    inline=False
-                )
-
-                embed.add_field(
-                    name="Discrepancies",
-                    value=f"❌ Missing from Discord: {missing_from_discord}\n"
-                          f"❓ Missing from Organization: {missing_from_org}",
-                    inline=False
-                )
-
-                embed.add_field(
-                    name="Legend",
-                    value=f"{COMPARE_STATUS['match']} Matched\n"
-                          f"{COMPARE_STATUS['missing']} Missing\n"
-                          f"{COMPARE_STATUS['mismatch']} Mismatched",
-                    inline=False
-                )
-
-                await interaction.followup.send(
-                    embed=embed,
-                    file=file,
-                    ephemeral=True
-                )
-
-        except Exception as e:
-            logger.error(f"Error in compare_members command: {e}")
-            await interaction.followup.send(
-                "❌ An error occurred while comparing members.",
-                ephemeral=True
-            )
-
-    @app_commands.command(
-        name="draxon-refresh",
-        description="Refresh RSI organization data"
-    )
-    @app_commands.checks.has_role("Magnate")
-    async def refresh_org_data(self, interaction: discord.Interaction):
-        """Force refresh of organization data"""
-        await interaction.response.defer(ephemeral=True)
-        
-        try:
-            # Clear caches
-            await self.bot.redis.delete(f'org_members:{RSI_CONFIG["ORGANIZATION_SID"]}')
-            await self.bot.redis.delete(f'org_info:{RSI_CONFIG["ORGANIZATION_SID"]}')
-            pattern = f'rsi_user:*'
-            keys = await self.bot.redis.keys(pattern)
-            if keys:
-                await self.bot.redis.delete(*keys)
-                
-            # Fetch fresh data
-            org_info = await self.get_org_info()
-            if not org_info:
-                await interaction.followup.send(
-                    "❌ Failed to fetch organization data.",
-                    ephemeral=True
-                )
-                return
-
-            org_members = await self.get_org_members()
-            if not org_members:
-                await interaction.followup.send(
-                    "❌ Failed to fetch organization members.",
-                    ephemeral=True
-                )
-                return
-                
-            await interaction.followup.send(
-                f"✅ Successfully refreshed organization data.\n"
-                f"Organization: {org_info['name']}\n"
-                f"Total Members: {len(org_members)}",
-                ephemeral=True
-            )
-            
-        except Exception as e:
-            logger.error(f"Error refreshing org data: {e}")
-            await interaction.followup.send(
-                "❌ An error occurred while refreshing data.",
                 ephemeral=True
             )
 
