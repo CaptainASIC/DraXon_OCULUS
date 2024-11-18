@@ -1,7 +1,7 @@
 """Constants for DraXon OCULUS"""
 
 # Version info
-APP_VERSION = "3.1.7"
+APP_VERSION = "3.1.8"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
