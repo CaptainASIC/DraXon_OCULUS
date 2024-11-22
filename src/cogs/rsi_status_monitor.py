@@ -217,28 +217,27 @@ class RSIStatusMonitorCog(commands.Cog):
                 logger.error("Category not found")
                 return
 
-            # Get status channel configs
-            status_channels = [
-                config for config in CHANNELS_CONFIG 
+            # Create a mapping of system names to their configs
+            status_channels = {
+                config["name"].split('-status')[0]: config
+                for config in CHANNELS_CONFIG 
                 if config["count_type"] == "status"
-            ]
+            }
 
             for channel in category.voice_channels:
-                # Find matching config for this channel
-                config = next(
-                    (c for c in status_channels 
-                     if c["name"].lower() in channel.name.lower()),
-                    None
-                )
+                # Extract system name from channel name by removing emoji and extra text
+                channel_name = channel.name.split(' ', 1)[1].lower()  # Remove emoji
                 
-                if not config:
-                    continue
-
-                # Extract system name from config
-                system = config["name"].replace("-status", "")
+                # Find matching system
+                matching_system = None
+                for system in status_channels.keys():
+                    if system.lower() in channel_name.lower():
+                        matching_system = system
+                        break
                 
-                if system in self.system_statuses:
-                    status = self.system_statuses[system]
+                if matching_system and matching_system in self.system_statuses:
+                    config = status_channels[matching_system]
+                    status = self.system_statuses[matching_system]
                     emoji = STATUS_EMOJIS.get(status, STATUS_EMOJIS['unknown'])
                     
                     # Use the display format from config
