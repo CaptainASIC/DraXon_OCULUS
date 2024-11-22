@@ -20,7 +20,7 @@ from src.utils.constants import (
     CHANNELS_CONFIG
 )
 
-logger = logging.getLogger('DraXon_AI')
+logger = logging.getLogger('DraXon_OCULUS')
 
 class RSIStatusMonitorCog(commands.Cog):
     """Monitor RSI platform status"""
@@ -76,21 +76,23 @@ class RSIStatusMonitorCog(commands.Cog):
     async def check_maintenance_window(self) -> bool:
         """Check if currently in maintenance window"""
         try:
-            now = datetime.utcnow().time()
+            now = datetime.utcnow()
             maintenance_start = datetime.strptime(
-                RSI_CONFIG['MAINTENANCE_START'], 
-                "%H:%M"
-            ).time()
+                f"{now.date()} {RSI_CONFIG['MAINTENANCE_START']}", 
+                "%Y-%m-%d %H:%M"
+            )
             
-            maintenance_end = (
-                datetime.combine(datetime.utcnow().date(), maintenance_start) +
-                timedelta(hours=RSI_CONFIG['MAINTENANCE_DURATION'])
-            ).time()
+            maintenance_end = maintenance_start + timedelta(hours=RSI_CONFIG['MAINTENANCE_DURATION'])
             
+            # Handle maintenance window crossing midnight
             if maintenance_end < maintenance_start:
-                return (now >= maintenance_start or now <= maintenance_end)
+                maintenance_end += timedelta(days=1)
+                if now < maintenance_start:
+                    maintenance_start -= timedelta(days=1)
             
-            return maintenance_start <= now <= maintenance_end
+            is_maintenance = maintenance_start <= now <= maintenance_end
+            logger.info(f"Maintenance window check: {is_maintenance} (Current: {now}, Start: {maintenance_start}, End: {maintenance_end})")
+            return is_maintenance
 
         except Exception as e:
             logger.error(f"Error checking maintenance window: {e}")
@@ -99,16 +101,17 @@ class RSIStatusMonitorCog(commands.Cog):
     async def check_status(self) -> Optional[Dict[str, str]]:
         """Check current system status"""
         try:
-            # Check cache first
+            # Check maintenance window first
+            if await self.check_maintenance_window():
+                logger.info("System is in maintenance window, setting all statuses to maintenance")
+                for key in self.system_statuses:
+                    self.system_statuses[key] = 'maintenance'
+                return self.system_statuses
+
+            # Check cache
             cached = await self.bot.redis.get('system_status')
             if cached:
                 self.system_statuses = json.loads(cached)
-                return self.system_statuses
-
-            # Check maintenance window
-            if await self.check_maintenance_window():
-                for key in self.system_statuses:
-                    self.system_statuses[key] = 'maintenance'
                 return self.system_statuses
 
             content = await self.make_request()
@@ -217,6 +220,8 @@ class RSIStatusMonitorCog(commands.Cog):
                 logger.error("Category not found")
                 return
 
+            logger.info(f"Current system statuses: {self.system_statuses}")
+
             # Create a mapping of system names to their configs
             status_channels = {
                 config["name"].split('-status')[0]: config
@@ -224,31 +229,44 @@ class RSIStatusMonitorCog(commands.Cog):
                 if config["count_type"] == "status"
             }
 
+            logger.info(f"Status channel mapping: {status_channels}")
+
             for channel in category.voice_channels:
+                logger.info(f"Processing channel: {channel.name}")
+                
                 # Extract system name from channel name by removing emoji and extra text
-                channel_name = channel.name.split(' ', 1)[1].lower()  # Remove emoji
-                
-                # Find matching system
-                matching_system = None
-                for system in status_channels.keys():
-                    if system.lower() in channel_name.lower():
-                        matching_system = system
-                        break
-                
-                if matching_system and matching_system in self.system_statuses:
-                    config = status_channels[matching_system]
-                    status = self.system_statuses[matching_system]
-                    emoji = STATUS_EMOJIS.get(status, STATUS_EMOJIS['unknown'])
+                if ' ' in channel.name:
+                    channel_name = channel.name.split(' ', 1)[1].lower()  # Remove emoji
+                    logger.info(f"Extracted channel name: {channel_name}")
                     
-                    # Use the display format from config
-                    new_name = config["display"].format(emoji=emoji)
+                    # Find matching system
+                    matching_system = None
+                    for system in status_channels.keys():
+                        if system.lower() in channel_name.lower():
+                            matching_system = system
+                            break
                     
-                    if channel.name != new_name:
-                        try:
-                            await channel.edit(name=new_name)
-                            logger.info(f"Updated status channel: {new_name}")
-                        except Exception as e:
-                            logger.error(f"Error updating channel {channel.name}: {e}")
+                    if matching_system:
+                        logger.info(f"Found matching system: {matching_system}")
+                        if matching_system in self.system_statuses:
+                            config = status_channels[matching_system]
+                            status = self.system_statuses[matching_system]
+                            emoji = STATUS_EMOJIS.get(status, STATUS_EMOJIS['unknown'])
+                            
+                            # Use the display format from config
+                            new_name = config["display"].format(emoji=emoji)
+                            
+                            if channel.name != new_name:
+                                logger.info(f"Updating channel {channel.name} to {new_name}")
+                                try:
+                                    await channel.edit(name=new_name)
+                                    logger.info(f"Successfully updated channel to: {new_name}")
+                                except Exception as e:
+                                    logger.error(f"Error updating channel {channel.name}: {e}")
+                        else:
+                            logger.warning(f"System {matching_system} not found in status data")
+                    else:
+                        logger.debug(f"No matching system found for channel: {channel.name}")
 
         except Exception as e:
             logger.error(f"Error updating status channels: {e}")
@@ -260,12 +278,15 @@ class RSIStatusMonitorCog(commands.Cog):
             return
 
         try:
+            logger.info("Starting status check task")
             current_status = await self.check_status()
             if current_status:
                 self.last_check = datetime.utcnow()
+                logger.info(f"Status check completed. Current status: {current_status}")
                 
                 # Update status channels in all guilds
                 for guild in self.bot.guilds:
+                    logger.info(f"Updating status channels for guild: {guild.name}")
                     await self.update_status_channels(guild)
 
         except Exception as e:
