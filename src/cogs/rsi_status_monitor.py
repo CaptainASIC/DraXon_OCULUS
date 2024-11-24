@@ -7,8 +7,8 @@ from discord import app_commands
 from discord.ext import commands, tasks
 import logging
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Any
+from datetime import datetime
+from typing import Dict, Optional
 import asyncio
 import json
 import aiohttp
@@ -73,42 +73,10 @@ class RSIStatusMonitorCog(commands.Cog):
         
         return None
 
-    async def check_maintenance_window(self) -> bool:
-        """Check if currently in maintenance window"""
-        try:
-            now = datetime.utcnow()
-            maintenance_start = datetime.strptime(
-                f"{now.date()} {RSI_CONFIG['MAINTENANCE_START']}", 
-                "%Y-%m-%d %H:%M"
-            )
-            
-            maintenance_end = maintenance_start + timedelta(hours=RSI_CONFIG['MAINTENANCE_DURATION'])
-            
-            # Handle maintenance window crossing midnight
-            if maintenance_end < maintenance_start:
-                maintenance_end += timedelta(days=1)
-                if now < maintenance_start:
-                    maintenance_start -= timedelta(days=1)
-            
-            is_maintenance = maintenance_start <= now <= maintenance_end
-            logger.info(f"Maintenance window check: {is_maintenance} (Current: {now}, Start: {maintenance_start}, End: {maintenance_end})")
-            return is_maintenance
-
-        except Exception as e:
-            logger.error(f"Error checking maintenance window: {e}")
-            return False
-
     async def check_status(self) -> Optional[Dict[str, str]]:
         """Check current system status"""
         try:
-            # Check maintenance window first
-            if await self.check_maintenance_window():
-                logger.info("System is in maintenance window, setting all statuses to maintenance")
-                for key in self.system_statuses:
-                    self.system_statuses[key] = 'maintenance'
-                return self.system_statuses
-
-            # Check cache
+            # Check cache first
             cached = await self.bot.redis.get('system_status')
             if cached:
                 self.system_statuses = json.loads(cached)
@@ -121,6 +89,7 @@ class RSIStatusMonitorCog(commands.Cog):
             soup = BeautifulSoup(content, 'html.parser')
             status_changed = False
 
+            # Get actual statuses from the website
             for component in soup.find_all('div', class_='component'):
                 name = component.find('span', class_='name')
                 status = component.find('span', class_='component-status')
@@ -322,15 +291,6 @@ class RSIStatusMonitorCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         
         try:
-            if await self.check_maintenance_window():
-                await interaction.followup.send(
-                    "⚠️ RSI systems are currently in maintenance window.\n"
-                    f"Maintenance period: {RSI_CONFIG['MAINTENANCE_START']} UTC "
-                    f"for {RSI_CONFIG['MAINTENANCE_DURATION']} hours.",
-                    ephemeral=True
-                )
-                return
-
             current_status = await self.check_status()
             
             if not current_status:

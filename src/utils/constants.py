@@ -1,7 +1,7 @@
 """Constants for DraXon OCULUS"""
 
 # Version info
-APP_VERSION = "3.1.11"
+APP_VERSION = "3.1.12"
 BUILD_DATE = "Nov 2024"
 
 # Bot Description - Simple format like PULSE
@@ -43,15 +43,6 @@ PROMOTION_TIMEOUT = ROLE_SETTINGS['PROMOTION_TIMEOUT']
 
 # Message Templates
 SYSTEM_MESSAGES = {
-    'MAINTENANCE': """
-⚠️ **RSI Website is Currently Unavailable**
-
-The RSI website is experiencing downtime. This is a known issue that occurs daily 
-from {start_time} UTC for approximately {duration} hours.
-
-Please try again later when the service has been restored.
-""",
-    
     'UNLINKED_REMINDER': """
 👋 Hello! This is a friendly reminder to link your RSI account with our Discord server.
 
@@ -133,8 +124,6 @@ RSI_CONFIG = {
     'MEMBERS_PER_PAGE': 32,
     'STATUS_URL': "https://status.robertsspaceindustries.com/",
     'FEED_URL': "https://status.robertsspaceindustries.com/index.xml",
-    'MAINTENANCE_START': "22:00",  # UTC
-    'MAINTENANCE_DURATION': 3,     # Hours
     'BASE_URL': "https://robertsspaceindustries.com",
     'USER_AGENT': f"DraXon_OCULUS/{APP_VERSION}",
     'HEADERS': {
